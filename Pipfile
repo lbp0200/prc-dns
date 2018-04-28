@@ -1,6 +1,6 @@
 [[source]]
 
-url = "https://pypi.python.org/simple"
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 verify_ssl = true
 name = "pypi"
 
@@ -12,3 +12,4 @@ name = "pypi"
 [packages]
 
 dnslib = "*"
+requests = "*"
