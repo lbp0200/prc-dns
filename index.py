@@ -20,6 +20,15 @@ class LogLevel(Enum):
         return self.value
 
 
+class Protocol(Enum):
+    udp = 'udp'
+    tcp = 'tcp'
+    both = 'both'
+
+    def __str__(self):
+        return self.value
+
+
 class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
     def handle(self):
@@ -41,11 +50,11 @@ def get_arg():
     """解析参数"""
     parser = argparse.ArgumentParser(prog='prc-dns', description='google dns proxy.')
     parser.add_argument('-v', '--verbose', help='log out DEBUG', action="store_true")
-    parser.add_argument('--log', help='Log Level,default ERROR', type=LogLevel, choices=list(LogLevel), default='ERROR')
     parser.add_argument('-l', '--listen', help='listening IP,default 0.0.0.0', default='0.0.0.0')
-    parser.add_argument('-p', '--port', help='listening Port,default 3535', default=3535)
+    parser.add_argument('-p', '--port', help='listening Port,default 5333', default=5333)
+    parser.add_argument('--log', help='Log Level,default ERROR', type=LogLevel, choices=list(LogLevel), default='ERROR')
+    parser.add_argument('-ut', '--tcp_udp', help='DNS protocol, tcp udp or both', type=Protocol, default='udp')
     parser.add_argument('-r', '--proxy', help='Used For Query Google DNS,default direct', default=None)
-    parser.add_argument('-ut', '--tcp_udp', help='DNS protocol, tcp udp or both', default='udp')
 
     return parser.parse_args()
 
@@ -70,7 +79,7 @@ def main():
     if not isinstance(numeric_level, int):
         raise ValueError('Invalid log level: %s' % loglevel)
     logging.basicConfig(format='%(asctime)s %(message)s', level=numeric_level)
-    
+
     # Port 0 means to select an arbitrary unused port
     HOST, PORT = "localhost", 0
 

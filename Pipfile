@@ -1,15 +1,11 @@
 [[source]]
-
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 verify_ssl = true
 name = "pypi"
 
-
 [dev-packages]
 
-
-
 [packages]
-
 dnslib = "*"
 requests = "*"
+"enum34" = "*"
