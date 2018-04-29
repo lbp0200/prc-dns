@@ -4,6 +4,8 @@ import sys
 import datetime
 import traceback
 import threading
+import socket
+import re
 import SocketServer
 import logging
 import argparse
@@ -32,16 +34,15 @@ class Protocol(Enum):
         return self.value
 
 
-class DNS_CN(Enum):
-    the_114 = '114.114.114.114'
-    baidu = '180.76.76.76'
-    aliyun = '223.5.5.5'
-
-    def __str__(self):
-        return self.value
-
+DNS_SERVERS_IN_PRC = ['tcp:114.114.114.114',
+                      'tcp:114.114.115.115',
+                      'tcp:180.76.76.76',
+                      'tcp:180.76.76.76',
+                      'tcp:223.5.5.5',
+                      'tcp:223.6.6.6', ]
 
 server = 'https://prudent-travels.000webhostapp.com/dns.php?'
+args = None
 
 
 class DomainName(str):
@@ -50,9 +51,6 @@ class DomainName(str):
 
 
 D = DomainName('baidu.com')
-IP = '127.0.0.1'
-TTL = 60 * 5
-PORT = 5053
 
 soa_record = SOA(
     mname=D.ns1,  # primary name server
@@ -65,48 +63,40 @@ soa_record = SOA(
         60 * 60 * 1,  # minimum
     )
 )
-ns_records = [NS(D.ns1), NS(D.ns2)]
-records = {
-    D: [A(IP), AAAA((0,) * 16), MX(D.mail), soa_record] + ns_records,
-    D.ns1: [A(IP)],  # MX and NS records must never point to a CNAME alias (RFC 2181 section 10.3)
-    D.ns2: [A(IP)],
-    D.mail: [A(IP)],
-    D.andrei: [CNAME(D)],
-}
+
+
+def query_cn_domain(dns_req):
+    proxy_request = DNSRecord(q=DNSQuestion(dns_req.q.qname, dns_req.q.qtype))
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect(('', 0))
+    s.sendall('Hello, world')
+    data = s.recv(1024)
+    s.close()
+    print 'Received', repr(data)
+    pass
 
 
 def dns_response(data):
     dns_req = DNSRecord.parse(data)
-
-    dns_req.reply()
-
-    # reply = DNSReco?rd(DNSHeader(id=request.header.id, qr=1, aa=1, ra=1), q=request.q)
+    logging.debug('received DNS Request:')
+    logging.debug(dns_req)
 
     qname = dns_req.q.qname
     qn = str(qname)
     qtype = dns_req.q.qtype
     qt = QTYPE[qtype]
+    qc = dns_req.q.qclass
+    logging.debug('%s %s', qn, qt)
 
-    if qn == D or qn.endswith('.' + D):
+    if qn.endswith('.cn.'):
+        pass
 
-        for name, rrs in records.iteritems():
-            if name == qn:
-                for rdata in rrs:
-                    rqt = rdata.__class__.__name__
-                    if qt in ['*', rqt]:
-                        reply.add_answer(RR(rname=qname, rtype=QTYPE[rqt], rclass=1, ttl=TTL, rdata=rdata))
-
-        for rdata in ns_records:
-            logging.debug(rdata)
-            reply.add_ns(RR(rname=D, rtype=QTYPE.NS, rclass=1, ttl=TTL, rdata=rdata))
-
-        reply.add_ns(RR(rname=D, rtype=QTYPE.SOA, rclass=1, ttl=TTL, rdata=soa_record))
-
+    dns_reply = dns_req.reply()
     logging.debug("---- Reply:")
-    logging.debug(reply)
+    logging.debug(dns_reply)
     logging.debug('reply pack------')
 
-    return reply.pack()
+    return dns_reply.pack()
 
 
 class MyBaseRequestHandler(SocketServer.BaseRequestHandler):
@@ -125,7 +115,7 @@ class MyBaseRequestHandler(SocketServer.BaseRequestHandler):
             data = self.get_data()
             # print len(data), data.encode('hex')  # repr(data).replace('\\x', '')[1:-1]
             self.send_data(dns_response(data))
-        except Exception :
+        except Exception:
             traceback.print_exc(file=sys.stderr)
 
 
@@ -160,7 +150,9 @@ def get_arg():
     parser.add_argument('--tcp_udp', help='DNS protocol, tcp udp or both', type=Protocol, default=Protocol.udp)
     parser.add_argument('--myip', help='the Public IP of client, will get from taobao by default', default=None)
     parser.add_argument('--server', help='The Server proxy DNS Request', default=server)
-    parser.add_argument('--cn', help='The DNS Server for cn domain', type=DNS_CN, default=DNS_CN.the_114)
+    parser.add_argument('--cn',
+                        help='The DNS Server for cn domain,default random tcp:114.114.114,tcp:180.76.76.76 etc.',
+                        default=None)
     args = parser.parse_args()
 
     if args.verbose:
@@ -171,6 +163,10 @@ def get_arg():
     if not isinstance(numeric_level, int):
         raise ValueError('Invalid log level: %s' % loglevel)
     logging.basicConfig(format='%(asctime)s %(message)s', level=numeric_level)
+
+    if args.cn is not None:
+        re.match('{tcp|udp}:')
+        pass
 
     if args.myip is None:
         resp = requests.get('http://ip.taobao.com/service/getIpInfo.php?ip=myip')
