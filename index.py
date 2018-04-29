@@ -164,10 +164,6 @@ def get_arg():
         raise ValueError('Invalid log level: %s' % loglevel)
     logging.basicConfig(format='%(asctime)s %(message)s', level=numeric_level)
 
-    if args.cn is not None:
-        re.match('{tcp|udp}:')
-        pass
-
     if args.myip is None:
         resp = requests.get('http://ip.taobao.com/service/getIpInfo.php?ip=myip')
         myip_data = resp.json()
