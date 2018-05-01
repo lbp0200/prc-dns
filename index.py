@@ -35,13 +35,7 @@ class Protocol(Enum):
         return self.value
 
 
-# 百度DNS多复制一次，保证随机取时，权重一样
-DNS_SERVERS_IN_PRC = ['tcp:114.114.114.114:53',
-                      'tcp:114.114.115.115:53',
-                      'tcp:180.76.76.76:53',
-                      'tcp:180.76.76.76:53',
-                      'tcp:223.5.5.5:53',
-                      'tcp:223.6.6.6:53', ]
+DNS_SERVERS_IN_PRC = ['tcp:114.114.114.114:53', 'tcp:114.114.115.115:53', ]
 
 server = 'https://prudent-travels.000webhostapp.com/dns.php'
 args = None
@@ -78,7 +72,7 @@ def query_over_udp(proxy_request, ip, port):
 def query_over_http(qn, qt):
     r = requests.get(args.server, {'name': qn, 'type': qt, 'edns_client_subnet': args.myip})
     logging.info('Query DNS over http, url: %s', r.url)
-    logging.debug(r.text)
+    logging.debug('Query DNS over http, response: %s', r.text)
     return r.json()
 
 
@@ -86,6 +80,7 @@ def query_cn_domain(dns_req):
     proxy_request = DNSRecord(q=DNSQuestion(dns_req.q.qname, dns_req.q.qtype))
     dns_cn = random.choice(DNS_SERVERS_IN_PRC)
     (protocal, ip, port) = dns_cn.split(':')
+    logging.debug('use random cn DNS server %s %s:%s', protocal, ip, port)
     if protocal == 'tcp':
         data = query_over_tcp(proxy_request, ip, int(port))
     else:
@@ -101,17 +96,21 @@ def query_cn_domain(dns_req):
     return dns_reply
 
 
-def query_domain(qn, qt, qc):
-    proxy_request = DNSRecord(q=DNSQuestion(qn, qt))
-    dns_reply = proxy_request.reply()
+def query_domain(dns_req):
+    qname = dns_req.q.qname
+    qn = str(qname)
+    qt = dns_req.q.qtype
+    qc = dns_req.q.qclass
+
+    dns_reply = dns_req.reply()
     dns_result = query_over_http(qn, qt)
     if dns_result['Status'] == 0:
         for a in dns_result['Answer']:
-            dns_reply.add_answer(RR(a['name'], a['type'], qc, a['TTL'], a['data']))
+            dns_reply.add_answer(RR(a['name'], a['type'], qc, a['TTL'], globals()[QTYPE[a['type']]](a['data'])))
     elif dns_result['Status'] == 3:
         for a in dns_result['Authority']:
-            dns_reply.add_auth(RR(a['name'], a['type'], qc, a['TTL'], a['data']))
-    return dns_result
+            dns_reply.add_auth(RR(a['name'], a['type'], qc, a['TTL'], globals()[QTYPE[a['type']]](a['data'])))
+    return dns_reply
 
 
 def dns_response(data):
@@ -122,15 +121,14 @@ def dns_response(data):
     qn = str(qname)
     qtype = dns_req.q.qtype
     qt = QTYPE[qtype]
-    # qc = dns_req.q.qclass
     logging.info('Received DNS Request: %s %s', qn, qt)
 
     if qn.endswith('.cn.'):
         dns_reply = query_cn_domain(dns_req)
     else:
-        dns_reply = query_domain(qn, qt, dns_req.q.qclass)
+        dns_reply = query_domain(dns_req)
 
-    logging.debug("DNS Reply: %s", dns_reply)
+    logging.debug("response DNS reply %s", dns_reply)
 
     return dns_reply.pack()
 
@@ -198,6 +196,7 @@ def get_arg():
     parser.add_argument('--cn',
                         help='The DNS Server for cn domain,default random tcp:114.114.114:53,tcp:180.76.76.76:53 etc.',
                         default=None)
+    global args
     args = parser.parse_args()
 
     if args.verbose:
@@ -267,9 +266,7 @@ def start_udp_server(host, port):
 
 def main():
     get_arg()
-    print(args)
-    exit()
-    # Port 0 means to select an arbitrary unused port
+
     HOST, PORT = args.listen, args.port
     servers = []
     if args.tcp_udp == Protocol.both:
@@ -279,13 +276,14 @@ def main():
         servers.append(start_tcp_server(HOST, PORT))
     else:
         servers.append(start_udp_server(HOST, PORT))
-    # client(ip, port, "Hello World 1")
+
     try:
         sys.stdin.read()
     except:
         pass
     finally:
         for s in servers:
+            logging.info('Close socket server %s %s for Exist', s.__class__.__name__, s.server_address)
             s.shutdown()
             s.server_close()
 
