@@ -44,7 +44,7 @@ setup(
 
     entry_points={
         'console_scripts': [
-            'PRCDNS=PRCDNS.server:main',
+            'prcdns=prcdns.index:main',
         ],
     },
 )
