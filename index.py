@@ -5,13 +5,14 @@ import datetime
 import traceback
 import threading
 import socket
-import re
 import SocketServer
 import logging
 import argparse
 from enum import Enum
 from dnslib import *
 import requests
+import random
+from IPy import IP
 
 
 class LogLevel(Enum):
@@ -34,67 +35,90 @@ class Protocol(Enum):
         return self.value
 
 
-DNS_SERVERS_IN_PRC = ['tcp:114.114.114.114',
-                      'tcp:114.114.115.115',
-                      'tcp:180.76.76.76',
-                      'tcp:180.76.76.76',
-                      'tcp:223.5.5.5',
-                      'tcp:223.6.6.6', ]
+# 百度DNS多复制一次，保证随机取时，权重一样
+DNS_SERVERS_IN_PRC = ['tcp:114.114.114.114:53',
+                      'tcp:114.114.115.115:53',
+                      'tcp:180.76.76.76:53',
+                      'tcp:180.76.76.76:53',
+                      'tcp:223.5.5.5:53',
+                      'tcp:223.6.6.6:53', ]
 
 server = 'https://prudent-travels.000webhostapp.com/dns.php?'
 args = None
 
 
-class DomainName(str):
-    def __getattr__(self, item):
-        return DomainName(item + '.' + self)
+def get_inet_version(ip):
+    if IP(ip).version() == 4:
+        return socket.AF_INET
+    else:
+        return socket.AF_INET6
 
 
-D = DomainName('baidu.com')
+def query_over_tcp(proxy_request, ip, port):
+    s = socket.socket(get_inet_version(ip), socket.SOCK_STREAM)
+    s.connect((ip, port))
+    q = proxy_request.pack()
+    b_req = struct.pack(">H", q.__len__()) + q
+    s.sendall(b_req)
+    data = s.recv(1024)
+    s.close()
+    return data[2:]
 
-soa_record = SOA(
-    mname=D.ns1,  # primary name server
-    rname=D.andrei,  # email of the domain administrator
-    times=(
-        201307231,  # serial number
-        60 * 60 * 1,  # refresh
-        60 * 60 * 3,  # retry
-        60 * 60 * 24,  # expire
-        60 * 60 * 1,  # minimum
-    )
-)
+
+def query_over_udp(proxy_request, ip, port):
+    s = socket.socket(get_inet_version(ip), socket.SOCK_DGRAM)
+    s.connect((ip, port))
+    q = proxy_request.pack()
+    s.sendall(q)
+    data = s.recv(1024)
+    s.close()
+    return data
+
+
+def query_over_http():
+    pass
 
 
 def query_cn_domain(dns_req):
     proxy_request = DNSRecord(q=DNSQuestion(dns_req.q.qname, dns_req.q.qtype))
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect(('', 0))
-    s.sendall('Hello, world')
-    data = s.recv(1024)
-    s.close()
-    print 'Received', repr(data)
-    pass
+    dns_cn = random.choice(DNS_SERVERS_IN_PRC)
+    (protocal, ip, port) = dns_cn.split(':')
+    if protocal == 'tcp':
+        data = query_over_tcp(proxy_request, ip, int(port))
+    else:
+        data = query_over_udp(proxy_request, ip, int(port))
+    dns_result = DNSRecord.parse(data)
+    logging.debug('cn domain query result is %s', dns_result)
+
+    dns_reply = dns_req.reply()
+    for r in dns_result.rr:
+        dns_reply.add_answer(r)
+    for a in dns_result.auth:
+        dns_reply.add_auth(a)
+    return dns_result
+
+
+def query_domain(qn, qt):
+    proxy_request = DNSRecord(q=DNSQuestion(qn, qt))
 
 
 def dns_response(data):
     dns_req = DNSRecord.parse(data)
-    logging.debug('received DNS Request:')
-    logging.debug(dns_req)
+    logging.debug('Received DNS Request: %s', dns_req)
 
     qname = dns_req.q.qname
     qn = str(qname)
     qtype = dns_req.q.qtype
     qt = QTYPE[qtype]
-    qc = dns_req.q.qclass
-    logging.debug('%s %s', qn, qt)
+    # qc = dns_req.q.qclass
+    logging.info('Received DNS Request: %s %s', qn, qt)
 
     if qn.endswith('.cn.'):
-        pass
+        dns_reply = query_cn_domain(dns_req)
+    else:
+        dns_reply = query_domain(qn, qt)
 
-    dns_reply = dns_req.reply()
-    logging.debug("---- Reply:")
-    logging.debug(dns_reply)
-    logging.debug('reply pack------')
+    logging.debug("DNS Reply: %s", dns_reply)
 
     return dns_reply.pack()
 
@@ -151,7 +175,7 @@ def get_arg():
     parser.add_argument('--myip', help='the Public IP of client, will get from taobao by default', default=None)
     parser.add_argument('--server', help='The Server proxy DNS Request', default=server)
     parser.add_argument('--cn',
-                        help='The DNS Server for cn domain,default random tcp:114.114.114,tcp:180.76.76.76 etc.',
+                        help='The DNS Server for cn domain,default random tcp:114.114.114:53,tcp:180.76.76.76:53 etc.',
                         default=None)
     args = parser.parse_args()
 
@@ -164,12 +188,20 @@ def get_arg():
         raise ValueError('Invalid log level: %s' % loglevel)
     logging.basicConfig(format='%(asctime)s %(message)s', level=numeric_level)
 
+    if args.cn is not None:
+        (cn_proto, cn_ip, cn_port) = args.cn.split(':')
+        if cn_proto not in ['tcp', 'udp']:
+            raise ValueError('--cn protocol must be one of tcp or udp')
+        cn_port = int(cn_port)
+        if cn_port < 1 or cn_port > 65535:
+            raise ValueError('--cn port error')
+        IP(cn_ip)
+
     if args.myip is None:
         resp = requests.get('http://ip.taobao.com/service/getIpInfo.php?ip=myip')
         myip_data = resp.json()
         args.myip = myip_data['data']['ip']
     else:
-        from IPy import IP
         ip = IP(args.myip)
         if ip.iptype() == 'PRIVATE':
             raise ValueError('Invalid myip, it is a private IP, if you do not know what is it mean, leave it empty.')
