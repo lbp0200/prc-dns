@@ -31,7 +31,7 @@ setup(
 
     keywords='DNS',
 
-    packages=find_packages(exclude=['contrib', 'docs', 'tests']),
+    packages=find_packages(exclude=['contrib', 'php', 'docs', 'tests']),
 
     install_requires=['dnslib', 'requests', 'enum34', 'IPy'],
 
