@@ -4,7 +4,7 @@ import sys
 import datetime
 import traceback
 import threading
-import socket
+# import socket
 import SocketServer
 import logging
 import argparse
@@ -43,7 +43,7 @@ DNS_SERVERS_IN_PRC = ['tcp:114.114.114.114:53',
                       'tcp:223.5.5.5:53',
                       'tcp:223.6.6.6:53', ]
 
-server = 'https://prudent-travels.000webhostapp.com/dns.php?'
+server = 'https://prudent-travels.000webhostapp.com/dns.php'
 args = None
 
 
@@ -75,8 +75,11 @@ def query_over_udp(proxy_request, ip, port):
     return data
 
 
-def query_over_http():
-    pass
+def query_over_http(qn, qt):
+    r = requests.get(args.server, {'name': qn, 'type': qt, 'edns_client_subnet': args.myip})
+    logging.info('Query DNS over http, url: %s', r.url)
+    logging.debug(r.text)
+    return r.json()
 
 
 def query_cn_domain(dns_req):
@@ -95,11 +98,20 @@ def query_cn_domain(dns_req):
         dns_reply.add_answer(r)
     for a in dns_result.auth:
         dns_reply.add_auth(a)
-    return dns_result
+    return dns_reply
 
 
-def query_domain(qn, qt):
+def query_domain(qn, qt, qc):
     proxy_request = DNSRecord(q=DNSQuestion(qn, qt))
+    dns_reply = proxy_request.reply()
+    dns_result = query_over_http(qn, qt)
+    if dns_result['Status'] == 0:
+        for a in dns_result['Answer']:
+            dns_reply.add_answer(RR(a['name'], a['type'], qc, a['TTL'], a['data']))
+    elif dns_result['Status'] == 3:
+        for a in dns_result['Authority']:
+            dns_reply.add_auth(RR(a['name'], a['type'], qc, a['TTL'], a['data']))
+    return dns_result
 
 
 def dns_response(data):
@@ -116,7 +128,7 @@ def dns_response(data):
     if qn.endswith('.cn.'):
         dns_reply = query_cn_domain(dns_req)
     else:
-        dns_reply = query_domain(qn, qt)
+        dns_reply = query_domain(qn, qt, dns_req.q.qclass)
 
     logging.debug("DNS Reply: %s", dns_reply)
 
@@ -134,17 +146,26 @@ class MyBaseRequestHandler(SocketServer.BaseRequestHandler):
         now = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')
         logging.debug("%s request %s (%s %s):" % (self.__class__.__name__[:3], now, self.client_address[0],
                                                   self.client_address[1]))
-        # logging.debug('received request')
         try:
             data = self.get_data()
-            # print len(data), data.encode('hex')  # repr(data).replace('\\x', '')[1:-1]
             self.send_data(dns_response(data))
         except Exception:
             traceback.print_exc(file=sys.stderr)
 
 
 class TcpRequestHandler(MyBaseRequestHandler):
-    pass
+    def get_data(self):
+        data = self.request.recv(1024).strip()
+        sz = int(data[:2].encode('hex'), 16)
+        if sz < len(data) - 2:
+            raise Exception("Wrong size of TCP packet")
+        elif sz > len(data) - 2:
+            raise Exception("Too big TCP packet")
+        return data[2:]
+
+    def send_data(self, data):
+        sz = hex(len(data))[2:].zfill(4).decode('hex')
+        return self.request.sendall(sz + data)
 
 
 class UdpRequestHandler(MyBaseRequestHandler):
@@ -197,6 +218,9 @@ def get_arg():
             raise ValueError('--cn port error')
         IP(cn_ip)
 
+    if args.server is None:
+        args.server = server
+
     if args.myip is None:
         resp = requests.get('http://ip.taobao.com/service/getIpInfo.php?ip=myip')
         myip_data = resp.json()
@@ -206,7 +230,6 @@ def get_arg():
         if ip.iptype() == 'PRIVATE':
             raise ValueError('Invalid myip, it is a private IP, if you do not know what is it mean, leave it empty.')
     logging.debug('your public IP is %s', args.myip)
-    return args
 
 
 def client(ip, port, message):
@@ -221,7 +244,7 @@ def client(ip, port, message):
 
 
 def start_tcp_server(host, port):
-    tcp_server = ThreadedTCPServer((host, port), MyBaseRequestHandler)
+    tcp_server = ThreadedTCPServer((host, port), TcpRequestHandler)
     ip, port = tcp_server.server_address
 
     tcp_server_thread = threading.Thread(target=tcp_server.serve_forever)
@@ -243,7 +266,9 @@ def start_udp_server(host, port):
 
 
 def main():
-    args = get_arg()
+    get_arg()
+    print(args)
+    exit()
     # Port 0 means to select an arbitrary unused port
     HOST, PORT = args.listen, args.port
     servers = []
