@@ -194,7 +194,7 @@ def get_arg():
     parser.add_argument('--myip', help='the Public IP of client, will get from taobao by default', default=None)
     parser.add_argument('--server', help='The Server proxy DNS Request', default=server)
     parser.add_argument('--cn',
-                        help='The DNS Server for cn domain,default random tcp:114.114.114:53,tcp:180.76.76.76:53 etc.',
+                        help='The DNS Server for cn domain,default random tcp:114.114.114:53,udp:180.76.76.76:53 etc.',
                         default=None)
     global args
     args = parser.parse_args()
