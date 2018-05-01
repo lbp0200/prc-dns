@@ -228,7 +228,7 @@ def get_arg():
         ip = IP(args.myip)
         if ip.iptype() == 'PRIVATE':
             raise ValueError('Invalid myip, it is a private IP, if you do not know what is it mean, leave it empty.')
-    logging.debug('your public IP is %s', args.myip)
+    logging.info('your public IP is %s', args.myip)
 
 
 def client(ip, port, message):
