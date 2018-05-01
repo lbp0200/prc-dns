@@ -283,7 +283,7 @@ def main():
         pass
     finally:
         for s in servers:
-            logging.info('Close socket server %s %s for Exist', s.__class__.__name__, s.server_address)
+            logging.info('Close socket server %s %s for exit', s.__class__.__name__[8:11], s.server_address)
             s.shutdown()
             s.server_close()
 
