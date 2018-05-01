@@ -5,6 +5,31 @@
 ## 改进
 1. cn域名直接使用114查询
 2. 不再需要另外的代理，通过国外免费的PHP空间进行DNS查询的转发
+## 安装
+```bash
+pip install git+https://github.com/lbp0200/prc-dns.git
+```
+## 启动
+```bash
+prcdns
+```
+## 参数说明
+```bash
+  -h, --help            show this help message and exit
+  -v, --verbose         log out DEBUG
+  -l LISTEN, --listen LISTEN
+                        listening IP,default 0.0.0.0
+  -p PORT, --port PORT  listening Port,default 5333
+  --log {CRITICAL,DEBUG,ERROR,INFO,WARNING}
+                        Log Level,default ERROR
+  --tcp_udp TCP_UDP     DNS protocol, tcp udp or both, default udp
+  --myip MYIP           the Public IP of client, will get from taobao by
+                        default
+  --server SERVER       The Server proxy DNS Request
+  --cn CN               The DNS Server for cn domain,default random
+                        tcp:114.114.114:53,tcp:180.76.76.76:53 etc.
+
+```
 
 还是没有DNS缓存，实在懒得弄，prc-dns前面放个dnsmasq或者pdnsd，效果更好。
 
