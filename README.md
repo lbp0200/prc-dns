@@ -4,7 +4,7 @@
 
 ## 改进
 1. cn域名直接使用114查询
-2. 不再需要另外的代理，通过国外免费的PHP空间进行DNS查询的转发
+2. 不再需要另外的代理，通过国外免费的PHP空间进行DNS查询的转发,将php文件夹中的`dns.php`文件上传到你的PHP空间，并设置参数`--server`为`dns.php`的地址即可，默认公共地址，但是公共地址可能超过流量限制，导致不稳定。
 ## 安装
 ```bash
 pip install git+https://github.com/lbp0200/prc-dns.git
