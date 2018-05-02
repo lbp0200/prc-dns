@@ -187,7 +187,7 @@ def get_arg():
     parser = argparse.ArgumentParser(prog='prc-dns', description='google dns proxy.')
     parser.add_argument('-v', '--verbose', help='log out DEBUG', action="store_true")
     parser.add_argument('-l', '--listen', help='listening IP,default 0.0.0.0', default='0.0.0.0')
-    parser.add_argument('-p', '--port', help='listening Port,default 5333', default=5333)
+    parser.add_argument('-p', '--port', help='listening Port,default 5333', type=int, default=5333)
     parser.add_argument('--log', help='Log Level,default ERROR', type=LogLevel, choices=list(LogLevel),
                         default=LogLevel.error)
     parser.add_argument('--tcp_udp', help='DNS protocol, tcp udp or both', type=Protocol, default=Protocol.udp)

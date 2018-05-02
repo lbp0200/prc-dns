@@ -27,7 +27,7 @@ prcdns
                         default
   --server SERVER       The Server proxy DNS Request
   --cn CN               The DNS Server for cn domain,default random
-                        tcp:114.114.114:53,tcp:180.76.76.76:53 etc.
+                        tcp:114.114.114:53,udp:180.76.76.76:53 etc.
 
 ```
 
