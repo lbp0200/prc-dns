@@ -110,12 +110,13 @@ def query_domain(dns_req):
 
     dns_reply = dns_req.reply()
     dns_result = query_over_http(qn, QTYPE[qt])
-    if 'Answer' in dns_result:
-        for a in dns_result['Answer']:
-            dns_reply.add_answer(RR(a['name'], a['type'], qc, a['TTL'], globals()[QTYPE[a['type']]](a['data'])))
-    if 'Authority' in dns_result:
-        for a in dns_result['Authority']:
-            dns_reply.add_auth(RR(a['name'], a['type'], qc, a['TTL'], globals()[QTYPE[a['type']]](a['data'])))
+    if dns_result is not None:
+        if 'Answer' in dns_result:
+            for a in dns_result['Answer']:
+                dns_reply.add_answer(RR(a['name'], a['type'], qc, a['TTL'], globals()[QTYPE[a['type']]](a['data'])))
+        if 'Authority' in dns_result:
+            for a in dns_result['Authority']:
+                dns_reply.add_auth(RR(a['name'], a['type'], qc, a['TTL'], globals()[QTYPE[a['type']]](a['data'])))
     return dns_reply
 
 
