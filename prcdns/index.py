@@ -103,7 +103,7 @@ def query_domain(dns_req):
     qc = dns_req.q.qclass
 
     dns_reply = dns_req.reply()
-    dns_result = query_over_http(qn, qt)
+    dns_result = query_over_http(qn, QTYPE[qt])
     if 'Answer' in dns_result:
         for a in dns_result['Answer']:
             dns_reply.add_answer(RR(a['name'], a['type'], qc, a['TTL'], globals()[QTYPE[a['type']]](a['data'])))
