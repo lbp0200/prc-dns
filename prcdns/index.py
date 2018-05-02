@@ -80,7 +80,9 @@ def query_over_http(qn, qt):
         logging.debug('Query DNS over http, response: %s', r.text)
         return r.json()
     except Exception as e:
-        logging.error("Query DNS over %s Error %s", r.url, e)
+        logging.error("Query DNS over %s %s Error %s", args.server,
+                      {'name': qn, 'type': qt, 'edns_client_subnet': args.myip},
+                      e)
 
 
 def query_cn_domain(dns_req):
