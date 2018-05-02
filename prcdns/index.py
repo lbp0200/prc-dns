@@ -70,7 +70,10 @@ def query_over_udp(proxy_request, ip, port):
 
 
 def query_over_http(qn, qt):
-    r = requests.get(args.server, {'name': qn, 'type': qt, 'edns_client_subnet': args.myip})
+    r = requests.get(args.server, {'name': qn, 'type': qt, 'edns_client_subnet': args.myip},
+                     headers={
+                         'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.{0}.181 Safari/537.36'.format(
+                                 random.randint(1, 9999))})
     logging.info('Query DNS over http, url: %s', r.url)
     logging.debug('Query DNS over http, response: %s', r.text)
     return r.json()
