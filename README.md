@@ -1,13 +1,17 @@
-# a DNS agent for the people in PRC
+# a DNS query agent for the people in PRC
 
 用Python 2.7重写了PRCDNS，定位于将软件放在局域网里面，特别是openwrt的路由器上。
 
 ## 改进
-1. cn域名直接使用114查询
+1. cn域名直接使用TCP协议`114.114.114.114:53`查询
 2. 不再需要另外的代理，通过国外免费的PHP空间进行DNS查询的转发,将php文件夹中的`dns.php`文件上传到你的PHP空间，并设置参数`--server`为`dns.php`的地址即可，默认公共地址，但是公共地址可能超过流量限制，导致不稳定。
 ## 安装
 ```bash
 pip install git+https://github.com/lbp0200/prc-dns.git
+```
+## 更新
+```bash
+pip install --upgrade git+https://github.com/lbp0200/prc-dns.git
 ```
 ## 启动
 ```bash
