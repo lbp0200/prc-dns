@@ -265,7 +265,7 @@ def start_tcp_server(host, port):
     tcp_server_thread = threading.Thread(target=tcp_server.serve_forever)
     tcp_server_thread.daemon = True
     tcp_server_thread.start()
-    logging.info("DNS Server start running at tcp %s:%d", ip, port)
+    print("DNS Server start running at tcp %s:%d", ip, port)
     return tcp_server
 
 
@@ -276,7 +276,7 @@ def start_udp_server(host, port):
     udp_server_thread = threading.Thread(target=udp_server.serve_forever)
     udp_server_thread.daemon = True
     udp_server_thread.start()
-    logging.info("DNS Server start running at udp %s:%d", ip, port)
+    print("DNS Server start running at udp %s:%d", ip, port)
     return udp_server
 
 
