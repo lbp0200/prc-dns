@@ -260,17 +260,6 @@ def get_arg():
     logging.info('your public IP is %s', args.myip)
 
 
-def client(ip, port, message):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect((ip, port))
-    try:
-        sock.sendall(message)
-        response = sock.recv(1024)
-        logging.info("Received: {}".format(response))
-    finally:
-        sock.close()
-
-
 def start_tcp_server(host, port):
     tcp_server = ThreadedTCPServer((host, port), TcpRequestHandler)
     ip, port = tcp_server.server_address
