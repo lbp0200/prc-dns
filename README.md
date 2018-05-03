@@ -37,4 +37,12 @@ prcdns
 
 还是没有DNS缓存，实在懒得弄，prc-dns前面放个dnsmasq或者pdnsd，效果更好。
 
+dnsmasq demo
+```bash
+no-resolv
+
+server=/taobao.com/192.168.1.1
+server=/cn/192.168.1.1
+server=/#/127.0.0.1#5333
+```
 copy some code from [Simple DNS server (UDP and TCP) in Python using dnslib.py](https://gist.github.com/andreif/6069838)
