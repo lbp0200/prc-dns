@@ -33,7 +33,7 @@ setup(
 
     packages=find_packages(exclude=['contrib', 'php', 'docs', 'tests']),
 
-    install_requires=['dnslib', 'requests', 'enum34', 'IPy'],
+    install_requires=['dnslib', 'requests[socks]', 'enum34', 'IPy'],
 
     extras_require={
         'dev': ['check-manifest'],

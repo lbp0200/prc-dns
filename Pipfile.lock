@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "c83c9e477196deb6e1aec8475bff2e0dd24dbbe1200235a48acb51770679bc64"
+            "sha256": "2467688192b99483553e7c799ccbc1a1166986751ce3bc82a0083a95781e4751"
         },
         "host-environment-markers": {
             "implementation_name": "cpython",
@@ -50,6 +50,10 @@
         "ipy": {
             "hashes": [],
             "version": "==0.83"
+        },
+        "pysocks": {
+            "hashes": [],
+            "version": "==1.6.8"
         },
         "requests": {
             "hashes": [],

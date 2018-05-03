@@ -40,6 +40,7 @@ class Protocol(Enum):
 DNS_SERVERS_IN_PRC = ['tcp:114.114.114.114:53', 'tcp:114.114.115.115:53', ]
 
 server = 'http://prudent-travels.000webhostapp.com/dns.php'
+ua_format = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.{0}.181 Safari/537.36'
 args = None
 
 
@@ -74,14 +75,19 @@ def query_over_udp(proxy_request, ip, port):
 def query_over_http(qn, qt):
     r = None
     try:
-        name = urllib.quote(base64.b64encode(qn))
-        t = urllib.quote(base64.b64encode(qt))
-        ecs = urllib.quote(base64.b64encode(args.myip))
-        r = requests.get(args.server, {'name': name, 'type': t, 'edns_client_subnet': ecs},
-                         headers={
-                             'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.{0}.181 Safari/537.36'.format(
-                                     random.randint(1, 9999))})
-        resp = base64.b64decode(r.text)
+        if args.proxy is None:
+            name = urllib.quote(base64.b64encode(qn))
+            t = urllib.quote(base64.b64encode(qt))
+            ecs = urllib.quote(base64.b64encode(args.myip))
+            r = requests.get(url=args.server, params={'name': name, 'type': t, 'edns_client_subnet': ecs},
+                             headers={'User-Agent': ua_format.format(random.randint(1, 9999))})
+            resp = base64.b64decode(r.text)
+        else:
+            r = requests.get(url=args.server,
+                             params={'name': qn, 'type': qt, 'edns_client_subnet': args.myip},
+                             headers={'User-Agent': ua_format.format(random.randint(1, 9999))},
+                             proxies={'http': args.proxy, 'https': args.proxy})
+            resp = r.text
         logging.info('Query DNS over http, url: %s', r.url)
         logging.debug('Query DNS over http, response: %s', resp)
         return json.loads(resp)
@@ -212,6 +218,9 @@ def get_arg():
     parser.add_argument('--cn',
                         help='The DNS Server for cn domain,default random tcp:114.114.114:53,udp:180.76.76.76:53 etc.',
                         default=None)
+    parser.add_argument('--proxy',
+                        help='The socks5 proxy for to DNS over HTTPS, option, if it is set, use https://dns.google.com/ to query, --server will not use, demo user:pass@host:port or host:port',
+                        default=None)
     global args
     args = parser.parse_args()
 
@@ -233,8 +242,12 @@ def get_arg():
             raise ValueError('--cn port error')
         IP(cn_ip)
 
-    if args.server is None:
-        args.server = server
+    if args.proxy is None:
+        if args.server is None:
+            args.server = server
+    else:
+        args.proxy = 'socks5:{0}'.format(args.proxy)
+        args.server = 'https://dns.google.com/resolve'
 
     if args.myip is None:
         resp = requests.get('http://ip.taobao.com/service/getIpInfo.php?ip=myip')
