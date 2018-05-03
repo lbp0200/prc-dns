@@ -38,7 +38,7 @@ class Protocol(Enum):
 
 DNS_SERVERS_IN_PRC = ['tcp:114.114.114.114:53', 'tcp:114.114.115.115:53', ]
 
-server = 'https://prudent-travels.000webhostapp.com/dns.php'
+server = 'http://prudent-travels.000webhostapp.com/dns.php'
 args = None
 
 
