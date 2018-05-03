@@ -13,6 +13,7 @@ from dnslib import *
 import requests
 import random
 import urllib
+import json
 from IPy import IP
 
 
@@ -80,9 +81,10 @@ def query_over_http(qn, qt):
                          headers={
                              'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.{0}.181 Safari/537.36'.format(
                                      random.randint(1, 9999))})
+        resp = base64.b64decode(r.text)
         logging.info('Query DNS over http, url: %s', r.url)
-        logging.debug('Query DNS over http, response: %s', r.text)
-        return r.json()
+        logging.debug('Query DNS over http, response: %s', resp)
+        return json.loads(resp)
     except Exception as e:
         logging.error("Query DNS over %s %s Error %s", args.server,
                       {'name': qn, 'type': qt, 'edns_client_subnet': args.myip},
