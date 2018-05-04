@@ -1,6 +1,9 @@
 # a DNS query agent for the people in PRC
+
 之前用Python3.5写了一个[PRCDNS](https://github.com/lbp0200/PRCDNS)。
-这个是用Python 2.7重写的，做了一些优化，支持IPV6，支持监听TCP、UDP，支持用国外PHP空间做代理。
+
+这个是用Python 2.7重写的，做了一些优化，支持IPV6，支持监听TCP、UDP，支持用国外PHP空间做代理（单机部署需要绑hosts）。
+
 
 ## 改进
 1. cn域名直接使用TCP协议`114.114.114.114:53`查询
