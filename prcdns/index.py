@@ -136,8 +136,12 @@ def query_domain(dns_req):
 
 
 def dns_response(data):
-    dns_req = DNSRecord.parse(data)
-    logging.debug('Received DNS Request: %s', dns_req)
+    try:
+        dns_req = DNSRecord.parse(data)
+        logging.debug('Received DNS Request: %s', dns_req)
+    except:
+        logging.warning('Recieved Unknown %s', data)
+        return b'hello'
 
     qname = dns_req.q.qname
     qn = str(qname)
