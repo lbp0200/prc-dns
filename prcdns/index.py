@@ -74,7 +74,6 @@ def query_over_udp(proxy_request, ip, port):
 
 def query_over_http(qn, qt):
     r = None
-    return r
     try:
         if args.proxy is None:
             name = urllib.quote(base64.b64encode(qn))
