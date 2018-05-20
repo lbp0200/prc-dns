@@ -74,6 +74,7 @@ def query_over_udp(proxy_request, ip, port):
 
 def query_over_http(qn, qt):
     r = None
+    return r
     try:
         if args.proxy is None:
             name = urllib.quote(base64.b64encode(qn))
@@ -123,11 +124,12 @@ def query_domain(dns_req):
     qt = dns_req.q.qtype
     qc = dns_req.q.qclass
 
+    dns_reply = dns_req.reply()
     dns_result = query_over_http(qn, QTYPE[qt])
     if dns_result is None:
-        return None
+        dns_reply.header.rcode = 2
+        return dns_reply
     else:
-        dns_reply = dns_req.reply()
         if 'Answer' in dns_result:
             for a in dns_result['Answer']:
                 dns_reply.add_answer(RR(a['name'], a['type'], qc, a['TTL'], globals()[QTYPE[a['type']]](a['data'])))
@@ -158,7 +160,7 @@ def dns_response(data):
 
     logging.debug("response DNS reply %s", dns_reply)
 
-    return None if dns_reply is None else dns_reply.pack()
+    return dns_reply.pack()
 
 
 class MyBaseRequestHandler(SocketServer.BaseRequestHandler):
