@@ -2,7 +2,8 @@
 
 之前用Python3.5写了一个[PRCDNS](https://github.com/lbp0200/PRCDNS)。
 
-这个是用Python 2.7重写的，做了一些优化，支持IPV6，支持监听TCP、UDP，支持用国外PHP空间做代理（单机部署需要绑hosts）和直接用Socks5两种模式。
+这个是用Python 2.7重写的，做了一些优化，支持IPV6，支持监听TCP、UDP，支持用国外PHP空间做代理（单机部署需要绑hosts）。
+
 
 ## 改进
 1. cn域名直接使用TCP协议`114.114.114.114:53`查询
@@ -10,14 +11,6 @@
 文件上传到你的PHP空间，并设置参数`--server`为`dns.php`的地址即可，
 默认是[http://prudent-travels.000webhostapp.com/dns.php](http://prudent-travels.000webhostapp.com/dns.php)，免费流量100G每月。
 国外的免费PHP空间还是很好找的。
-
-## 使用场景
-参数`myip`你的公网IP，CDN域名找最近IP用的；`proxy`SS本地地址，请求`dns.google.com`用。
-### 有SS socks5代理
-`prcdns --myip 223.72.73.0 --proxy 127.0.0.1:1080`
-### 无SS socks5代理
-`prcdns --myip 223.72.73.0`
-用PHP空间来访问`dns.google.com`
 ## 安装
 ```bash
 pip install git+https://github.com/lbp0200/prc-dns.git
@@ -41,19 +34,20 @@ google dns proxy.
 optional arguments:
   -h, --help            show this help message and exit
   -v, --verbose         log out DEBUG 调试专用
-  -l LISTEN, --listen LISTEN
-                        listening IP,default 0.0.0.0
+  -l LISTEN, --listen LISTEN 
+                        listening IP,default 0.0.0.0 
   -p PORT, --port PORT  listening Port,default 5333
   --log {CRITICAL,DEBUG,ERROR,INFO,WARNING}
-                        Log Level,default ERROR
+                        Log Level,default ERROR 
   --tcp_udp TCP_UDP     DNS protocol, tcp udp or both 默认udp
   --myip MYIP           the Public IP of client, will get from taobao by
-                        default
+                        default 
                         软件启动后，去http://ip.taobao.com/service/getIpInfo.php?ip=myip
                         查询当前公网IP，用与优化CDN域名解析结果，返回最近的IP，默认空，设置后，
- 就不会去查询了，使用设置项。  --server SERVER       The Server proxy DNS Request
-                        部署在国外PHP空间的代理，请使用http，自带base64混淆，不要用https。
- --cn CN               The DNS Server for cn domain,default random
+                        就不会去查询了，使用设置项。
+  --server SERVER       The Server proxy DNS Request
+                        部署在国外PHP空间的代理，请使用http，自带base64混淆，不要用https。  
+  --cn CN               The DNS Server for cn domain,default random
                         tcp:114.114.114:53,udp:180.76.76.76:53 etc.
                         cn域名，直接用114查询，只有114支持TCP。
   --proxy PROXY         The socks5 proxy for to DNS over HTTPS, option, if it
@@ -79,26 +73,26 @@ global {
         server_port = 53;
         status_ctl = on;
         query_method = tcp_only; #只使用TCP协议查询上游，需要prc-dns也监听tcp
-        min_ttl=15m;
-        max_ttl=1w;
-        timeout = 10;
+        min_ttl=15m;      
+        max_ttl=1w;       
+        timeout = 10;       
         par_queries = 1;
 }
 server {
-   label = "prcdns";
-   ip = 127.0.0.1;
-   port = 5333;
-   proxy_only = on;
-   timeout = 10;
-   policy = included;
-   uptest = none;
-   exclude = .cn,.baidu.com,.91.com,.sohu.com,.sogou.com; # 特别常用的，直接国内
+	label = "prcdns";
+	ip = 127.0.0.1;
+	port = 5333; 
+	proxy_only = on;
+	timeout = 10;
+	policy = included;
+	uptest = none;
+	exclude = .cn,.baidu.com,.91.com,.sohu.com,.sogou.com; # 特别常用的，直接国内
 }
 server {
         label= "114"; # 支持TCP，baidu、aliyun DNS 不支持TCP
         ip = 114.114.114.114,114.114.115.115;
-        port = 53;
-        proxy_only = on;
+        port = 53; 
+        proxy_only = on; 
         timeout = 4;
         uptest = none;
         policy = included;
@@ -112,4 +106,6 @@ server=/taobao.com/192.168.1.1
 server=/cn/192.168.1.1
 server=/#/127.0.0.1#5333
 ```
+### 已知的有问题域名
+`127.net`（访问163时发现的问题）
 copy some code from [Simple DNS server (UDP and TCP) in Python using dnslib.py](https://gist.github.com/andreif/6069838)
