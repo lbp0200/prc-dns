@@ -106,6 +106,5 @@ server=/taobao.com/192.168.1.1
 server=/cn/192.168.1.1
 server=/#/127.0.0.1#5333
 ```
-### 已知的有问题域名
-`127.net`（访问163时发现的问题）
+
 copy some code from [Simple DNS server (UDP and TCP) in Python using dnslib.py](https://gist.github.com/andreif/6069838)
