@@ -15,6 +15,9 @@ import random
 import urllib
 import json
 from IPy import IP
+from urlparse import urlparse
+import re
+import white_domain
 
 
 class LogLevel(Enum):
@@ -37,8 +40,9 @@ class Protocol(Enum):
         return self.value
 
 
-DNS_SERVERS_IN_PRC = ['tcp:114.114.114.114:53', 'tcp:114.114.115.115:53', ]
+white_domain_dict = white_domain.white_domain_dict
 
+DNS_SERVERS_IN_PRC = ['tcp:114.114.114.114:53', 'tcp:114.114.115.115:53', ]
 server = 'http://prudent-travels.000webhostapp.com/dns.php'
 ua_format = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.{0}.181 Safari/537.36'
 args = None
@@ -73,28 +77,32 @@ def query_over_udp(proxy_request, ip, port):
 
 
 def query_over_http(qn, qt):
-    r = None
-    try:
-        if args.proxy is None:
-            name = urllib.quote(base64.b64encode(qn))
-            t = urllib.quote(base64.b64encode(qt))
-            ecs = urllib.quote(base64.b64encode(args.myip))
-            r = requests.get(url=args.server, params={'name': name, 'type': t, 'edns_client_subnet': ecs},
-                             headers={'User-Agent': ua_format.format(random.randint(1, 9999))})
-            resp = base64.b64decode(r.text)
-        else:
-            r = requests.get(url=args.server,
-                             params={'name': qn, 'type': qt, 'edns_client_subnet': args.myip},
-                             headers={'User-Agent': ua_format.format(random.randint(1, 9999))},
-                             proxies={'http': args.proxy, 'https': args.proxy})
-            resp = r.text
-        logging.info('Query DNS over http, url: %s', r.url)
-        logging.debug('Query DNS over http, response: %s', resp)
-        return json.loads(resp)
-    except Exception as e:
-        logging.error("Query DNS over %s %s Error %s", args.server,
-                      {'name': qn, 'type': qt, 'edns_client_subnet': args.myip},
-                      e)
+    for i in range(1, 3):
+        try:
+            if args.proxy is None:
+                name = urllib.quote(base64.b64encode(qn))
+                t = urllib.quote(base64.b64encode(qt))
+                ecs = urllib.quote(base64.b64encode(args.myip))
+                r = requests.get(url=args.server, params={'name': name, 'type': t, 'edns_client_subnet': ecs},
+                                 headers={'User-Agent': ua_format.format(random.randint(1, 9999))})
+                resp = base64.b64decode(r.text)
+            else:
+                r = requests.get(url=args.server,
+                                 params={'name': qn, 'type': qt, 'edns_client_subnet': args.myip},
+                                 headers={'User-Agent': ua_format.format(random.randint(1, 9999))},
+                                 proxies={'http': args.proxy, 'https': args.proxy})
+                resp = r.text
+            logging.info('Query DNS over http, url: %s', r.url)
+            logging.debug('Query DNS over http, response: %s', resp)
+            return json.loads(resp)
+        except Exception as e:
+            logging.warning("Query DNS over %s %s Error %s", args.server,
+                            {'name': qn, 'type': qt, 'edns_client_subnet': args.myip},
+                            e)
+            logging.warning('Retry %d', i)
+    logging.error("Query DNS over %s %s Error %s", args.server,
+                  {'name': qn, 'type': qt, 'edns_client_subnet': args.myip},
+                  e)
 
 
 def query_cn_domain(dns_req):
@@ -138,13 +146,37 @@ def query_domain(dns_req):
         return dns_reply
 
 
+def get_root_domain(domain):
+    fixed_domain = domain
+    if not fixed_domain.endswith('.'):
+        fixed_domain += '.'
+    m = re.search('(.*\.)?([^.\n]+\.[^.\n]+\.)', fixed_domain)
+    if m:
+        groups = m.groups()
+        print(groups)
+        if len(groups) > 1:
+            return groups[1][:-1]
+    return False
+
+
+def is_domain_white_list(domain):
+    if not domain.endswith('.cn.'):
+        root_domain = get_root_domain(domain)
+        if root_domain:
+            if not root_domain in white_domain_dict:
+                logging.debug("domain %s is not in white list", root_domain)
+                return False
+    logging.debug("domain %s is in white list", domain)
+    return True
+
+
 def dns_response(data):
     try:
         dns_req = DNSRecord.parse(data)
         logging.debug('Received DNS Request: %s', dns_req)
     except:
         logging.warning('Recieved Unknown %s', data)
-        return b'hello'
+        return DNSRecord().reply(2).pack()
 
     qname = dns_req.q.qname
     qn = str(qname)
@@ -152,7 +184,7 @@ def dns_response(data):
     qt = QTYPE[qtype]
     logging.info('Received DNS Request: %s %s', qn, qt)
 
-    if qn.endswith('.cn.'):
+    if is_domain_white_list(qn):
         dns_reply = query_cn_domain(dns_req)
     else:
         dns_reply = query_domain(dns_req)
@@ -252,19 +284,25 @@ def get_arg():
     if args.proxy is None:
         if args.server is None:
             args.server = server
+        parsed_uri = urlparse(args.server)
+        global white_domain_dict
+        root_domain = get_root_domain(parsed_uri.hostname)
+        if root_domain:
+            white_domain_dict[root_domain] = 1
+            print(white_domain_dict)
+        else:
+            raise Exception('Can not get Root Domain of ' + parsed_uri.hostname)
     else:
         args.proxy = 'socks5:{0}'.format(args.proxy)
         args.server = 'https://dns.google.com/resolve'
 
     if args.myip is None:
-        resp = requests.get('http://ip.taobao.com/service/getIpInfo.php?ip=myip')
-        myip_data = resp.json()
-        args.myip = myip_data['data']['ip']
+        pass
     else:
         ip = IP(args.myip)
         if ip.iptype() == 'PRIVATE':
             raise ValueError('Invalid myip, it is a private IP, if you do not know what is it mean, leave it empty.')
-    logging.info('your public IP is %s', args.myip)
+        logging.info('your public IP is %s', args.myip)
 
 
 def start_tcp_server(host, port):
@@ -274,7 +312,7 @@ def start_tcp_server(host, port):
     tcp_server_thread = threading.Thread(target=tcp_server.serve_forever)
     tcp_server_thread.daemon = True
     tcp_server_thread.start()
-    print("DNS Server start running at tcp %s:%d", ip, port)
+    print("DNS Server start running at tcp {}:{}".format(ip, port))
     return tcp_server
 
 
@@ -285,7 +323,7 @@ def start_udp_server(host, port):
     udp_server_thread = threading.Thread(target=udp_server.serve_forever)
     udp_server_thread.daemon = True
     udp_server_thread.start()
-    print("DNS Server start running at udp %s:%d", ip, port)
+    print("DNS Server start running at udp {}:{}".format(ip, port))
     return udp_server
 
 
@@ -301,6 +339,13 @@ def main():
         servers.append(start_tcp_server(HOST, PORT))
     else:
         servers.append(start_udp_server(HOST, PORT))
+
+    # DNS服务器启动后，开始解析自身依赖域名
+    if args.myip is None:
+        resp = requests.get('http://ip.taobao.com/service/getIpInfo.php?ip=myip')
+        myip_data = resp.json()
+        args.myip = myip_data['data']['ip']
+        logging.info('your public IP is %s', args.myip)
 
     try:
         sys.stdin.read()
