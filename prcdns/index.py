@@ -153,7 +153,6 @@ def get_root_domain(domain):
     m = re.search('(.*\.)?([^.\n]+\.[^.\n]+\.)', fixed_domain)
     if m:
         groups = m.groups()
-        print(groups)
         if len(groups) > 1:
             return groups[1][:-1]
     return False
@@ -289,7 +288,6 @@ def get_arg():
         root_domain = get_root_domain(parsed_uri.hostname)
         if root_domain:
             white_domain_dict[root_domain] = 1
-            print(white_domain_dict)
         else:
             raise Exception('Can not get Root Domain of ' + parsed_uri.hostname)
     else:
