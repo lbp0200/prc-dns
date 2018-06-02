@@ -40,9 +40,20 @@ class Protocol(Enum):
         return self.value
 
 
+class IpVersion(Enum):
+    ipv4 = '4'
+    ipv6 = '6'
+    ipv6_ipv4 = '64'
+    ipv4_ipv6 = '46'
+
+    def __str__(self):
+        return self.value
+
+
 white_domain_dict = white_domain.white_domain_dict
 
-DNS_SERVERS_IN_PRC = ['tcp:114.114.114.114:53', 'tcp:114.114.115.115:53', ]
+DNS_SERVERS_IN_PRC = ['tcp/114.114.114.114/53', 'tcp/114.114.115.115/53', ]
+DNS6_SERVERS_IN_PRC = ['tcp/240c::6666/53', 'tcp/240c::6644/53', ]
 server = 'http://prudent-travels.000webhostapp.com/dns.php'
 ua_format = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.{0}.181 Safari/537.36'
 args = None
@@ -117,9 +128,20 @@ def query_cn_domain(dns_req):
     dns_result = DNSRecord.parse(data)
     logging.debug('cn domain query result is %s', dns_result)
 
+    # if args.server_info and args.server_info['domain'] == str(dns_req.q.qname):
+    #     args.server_info['ip'] =
+    #     args.server_info['expire'] = datetime.datetime.now()
+
     dns_reply = dns_req.reply()
     for r in dns_result.rr:
         dns_reply.add_answer(r)
+        # cache args.server
+        if QTYPE[r.rtype] == 'A' and args.server_info and args.server_info['domain'] == str(r.rname) and \
+                args.server_info['expire'] <= datetime.datetime.now():
+            args.server_info['expire'] = datetime.datetime.now() + datetime.timedelta(
+                seconds=r.ttl if r.ttl > 0 else 365 * 24 * 60 * 60)
+            args.server_info['ip'] = r.rdata
+
     for a in dns_result.auth:
         dns_reply.add_auth(a)
     return dns_reply
@@ -174,7 +196,7 @@ def dns_response(data):
         dns_req = DNSRecord.parse(data)
         logging.debug('Received DNS Request: %s', dns_req)
     except:
-        logging.warning('Recieved Unknown %s', data)
+        logging.warning('Recieved Unknown %r', data)
         return DNSRecord().reply(2).pack()
 
     qname = dns_req.q.qname
@@ -183,10 +205,17 @@ def dns_response(data):
     qt = QTYPE[qtype]
     logging.info('Received DNS Request: %s %s', qn, qt)
 
-    if is_domain_white_list(qn):
-        dns_reply = query_cn_domain(dns_req)
-    else:
+    # cache args.server
+    if args.server_info and args.server_info['domain'] == qn and args.server_info['expire'] > datetime.datetime.now():
+        dns_reply = dns_req.reply()
+        dns_reply.add_answer(RR(qn, qt))
+        return dns_reply.pack()
+
+    if not is_domain_white_list(qn) and args.server_info and args.server_info[
+        'expire'] > datetime.datetime.now():
         dns_reply = query_domain(dns_req)
+    else:
+        dns_reply = query_cn_domain(dns_req)
 
     logging.debug("response DNS reply %s", dns_reply)
 
@@ -251,39 +280,61 @@ def get_arg():
     parser.add_argument('--log', help='Log Level,default ERROR', type=LogLevel, choices=list(LogLevel),
                         default=LogLevel.error)
     parser.add_argument('--tcp_udp', help='DNS protocol, tcp udp or both', type=Protocol, default=Protocol.udp)
-    parser.add_argument('--myip', help='the Public IP of client, will get from taobao by default', default=None)
+    parser.add_argument('--myip', help='the Public IP v4 of client, will get it automatically', default=None)
+    parser.add_argument('--myip6', help='the Public IP v6 of client, will get it automatically', default=None)
+
+    parser.add_argument('--ip_version',
+                        help='The IP Version of NetWork, Enum(4=ipv4 only,6=ipv6 only,64=prefer ipv6,46=prefer ipv4),'
+                             'Default ipv4',
+                        default=IpVersion.ipv4)
+
     parser.add_argument('--server', help='The Server proxy DNS Request', default=server)
     parser.add_argument('--cn',
-                        help='The DNS Server for cn domain,default random tcp:114.114.114:53,udp:180.76.76.76:53 etc.',
+                        help='The DNS Server for cn domain,default is tcp/114.114.114/53,'
+                             'set demo: udp/180.76.76.76/53',
+                        default=None)
+    parser.add_argument('--cn6',
+                        help='The DNS Server for cn domain,default is (tcp/240c::6666/53),'
+                             'set demo: udp/2a00:1450:4009:808::200e/53',
                         default=None)
     parser.add_argument('--proxy',
-                        help='The socks5 proxy for to DNS over HTTPS, option, if it is set, use https://dns.google.com/ to query, --server will not use, demo user:pass@host:port or host:port',
+                        help='The socks5 proxy for to DNS over HTTPS, option, if it is set, '
+                             'use https://dns.google.com/ to query, --server will not use, '
+                             'demo user:pass@host:port or host:port',
                         default=None)
     global args
     args = parser.parse_args()
 
     if args.verbose:
         args.log = 'DEBUG'
-    loglevel = args.log
-    numeric_level = getattr(logging, str(loglevel).upper(), None)
+    log_level = args.log
+    numeric_level = getattr(logging, str(log_level).upper(), None)
 
     if not isinstance(numeric_level, int):
-        raise ValueError('Invalid log level: %s' % loglevel)
+        raise ValueError('Invalid log level: %s' % log_level)
     logging.basicConfig(format='%(asctime)s %(message)s', level=numeric_level)
 
     if args.cn is not None:
-        (cn_proto, cn_ip, cn_port) = args.cn.split(':')
+        (cn_proto, cn_ip, cn_port) = args.cn.split('/')
         if cn_proto not in ['tcp', 'udp']:
             raise ValueError('--cn protocol must be one of tcp or udp')
         cn_port = int(cn_port)
         if cn_port < 1 or cn_port > 65535:
             raise ValueError('--cn port error')
         IP(cn_ip)
-
+    if args.cn6 is not None:
+        (cn6_proto, cn6_ip, cn6_port) = args.cn6.split('/')
+        if cn6_proto not in ['tcp', 'udp']:
+            raise ValueError('--cn protocol must be one of tcp or udp')
+        cn6_port = int(cn6_port)
+        if cn6_port < 1 or cn6_port > 65535:
+            raise ValueError('--cn port error')
+        IP(cn6_ip)
     if args.proxy is None:
         if args.server is None:
             args.server = server
         parsed_uri = urlparse(args.server)
+        args.server_info = {'domain': parsed_uri.hostname + '.', 'ip': None, 'expire': datetime.datetime.min}
         global white_domain_dict
         root_domain = get_root_domain(parsed_uri.hostname)
         if root_domain:
@@ -294,13 +345,16 @@ def get_arg():
         args.proxy = 'socks5:{0}'.format(args.proxy)
         args.server = 'https://dns.google.com/resolve'
 
-    if args.myip is None:
-        pass
-    else:
+    if args.myip is not None:
         ip = IP(args.myip)
         if ip.iptype() == 'PRIVATE':
             raise ValueError('Invalid myip, it is a private IP, if you do not know what is it mean, leave it empty.')
-        logging.info('your public IP is %s', args.myip)
+        logging.info('your public IP v4 is %s', args.myip)
+    if args.myip6 is not None:
+        ip = IP(args.myip6)
+        if ip.iptype() == 'PRIVATE':
+            raise ValueError('Invalid myip, it is a private IP, if you do not know what is it mean, leave it empty.')
+        logging.info('your public IP v6 is %s', args.myip6)
 
 
 def start_tcp_server(host, port):
@@ -328,22 +382,40 @@ def start_udp_server(host, port):
 def main():
     get_arg()
 
-    HOST, PORT = args.listen, args.port
+    host, port = args.listen, args.port
     servers = []
     if args.tcp_udp == Protocol.both:
-        servers.append(start_tcp_server(HOST, PORT))
-        servers.append(start_udp_server(HOST, PORT))
+        servers.append(start_tcp_server(host, port))
+        servers.append(start_udp_server(host, port))
     elif args.tcp_udp == Protocol.tcp:
-        servers.append(start_tcp_server(HOST, PORT))
+        servers.append(start_tcp_server(host, port))
     else:
-        servers.append(start_udp_server(HOST, PORT))
+        servers.append(start_udp_server(host, port))
+
+    # try:
+    #     requests.get('https://mirrors6.tuna.tsinghua.edu.cn/', allow_redirects=False, timeout=(1, 3))
+    # except:
+    #     pass
 
     # DNS服务器启动后，开始解析自身依赖域名
-    if args.myip is None:
-        resp = requests.get('http://ip.taobao.com/service/getIpInfo.php?ip=myip')
+    if args.ip_version == IpVersion.ipv4:
+        if args.myip is None:
+            pass
+    elif args.ip_version == IpVersion.ipv6:
+        if args.myip6 is None:
+            pass
+    elif args.ip_version == IpVersion.ipv6_ipv4:
+        if args.myip6 is None:
+            pass
+
+    if args.myip is None or args.myip6 is None:
+        resp = requests.get(args.server)
         myip_data = resp.json()
-        args.myip = myip_data['data']['ip']
+        args.myip = myip_data['origin']
         logging.info('your public IP is %s', args.myip)
+
+    if args.server_info:
+        pass
 
     try:
         sys.stdin.read()
