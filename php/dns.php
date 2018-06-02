@@ -4,7 +4,7 @@ if (isset($_SERVER['HTTPS'])) {
     $is_https = true;
 }
 if (count($_GET) === 0) {
-    $k_arr = ['REMOTE_ADDR', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR'];
+    $k_arr = ['REMOTE_ADDR', 'HTTP_X_REAL_IP', 'HTTP_X_FORWARDED_FOR'];
     foreach ($k_arr as $k) {
         if (isset($_SERVER[$k]) && !empty($_SERVER[$k])) {
             echo json_encode(['origin' => $_SERVER[$k]]);
