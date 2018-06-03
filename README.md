@@ -2,7 +2,7 @@
 
 之前用Python3.5写了一个[PRCDNS](https://github.com/lbp0200/PRCDNS)。
 
-这个是用Python 2.7重写的，做了一些优化，支持IPV6，支持监听TCP、UDP，支持用国外PHP空间做代理（单机部署需要绑hosts）。
+这个是用Python 2.7重写的，做了一些优化，支持IPV6，支持监听TCP、UDP，支持用国外PHP空间做代理。
 
 
 ## 改进
@@ -25,38 +25,42 @@ prcdns
 ```
 ## 参数说明
 ```bash
-usage: prc-dns [-h] [-v] [-l LISTEN] [-p PORT]
+usage: prc-dns [-h] [-v] [-H HOST] [-P PORT]
                [--log {CRITICAL,DEBUG,ERROR,INFO,WARNING}] [--tcp_udp TCP_UDP]
-               [--myip MYIP] [--server SERVER] [--cn CN] [--proxy PROXY]
+               [--myip MYIP] [--ip_version IP_VERSION] [--server SERVER]
+               [--cn CN] [--cn6 CN6] [--proxy PROXY]
 
 google dns proxy.
 
 optional arguments:
   -h, --help            show this help message and exit
-  -v, --verbose         log out DEBUG 调试专用
-  -l LISTEN, --listen LISTEN 
-                        listening IP,default 0.0.0.0 
-  -p PORT, --port PORT  listening Port,default 5333
+  -v, --verbose         log out DEBUG
+  -H HOST, --host HOST  listening IP,default 127.0.0.2
+  -P PORT, --port PORT  listening Port,default 5333
   --log {CRITICAL,DEBUG,ERROR,INFO,WARNING}
-                        Log Level,default ERROR 
-  --tcp_udp TCP_UDP     DNS protocol, tcp udp or both 默认udp
-  --myip MYIP           the Public IP of client, will get from taobao by
-                        default 
-                        软件启动后，去http://ip.taobao.com/service/getIpInfo.php?ip=myip
-                        查询当前公网IP，用与优化CDN域名解析结果，返回最近的IP，默认空，设置后，
-                        就不会去查询了，使用设置项。
-  --server SERVER       The Server proxy DNS Request
-                        部署在国外PHP空间的代理，请使用http，自带base64混淆，不要用https。  
-  --cn CN               The DNS Server for cn domain,default random
-                        tcp:114.114.114:53,udp:180.76.76.76:53 etc.
+                        Log Level,default ERROR
+  --tcp_udp TCP_UDP     DNS protocol, tcp udp or both
+  --myip MYIP           the Public IP v4 of client, will get it automatically
+  软件启动后，去http://ip.taobao.com/service/getIpInfo.php?ip=myip
+                          查询当前公网IP，用与优化CDN域名解析结果，返回最近的IP，默认空，设置后，
+                          就不会去查询了，使用设置项。
+  --ip_version IP_VERSION
+                        The IP Version of NetWork, Enum(64=try ipv6
+                        first,46=try ipv4 first),Default 46
+  --server SERVER       The Server proxy DNS Request 部署在国外PHP空间的代理，请使用http，自带base64混淆，不要用https。 
+  --cn CN               The DNS Server for cn domain,default is
+                        tcp/114.114.114/53,set demo: udp/180.76.76.76/53
                         cn域名，直接用114查询，只有114支持TCP。
+  --cn6 CN6             The DNS Server for cn domain,default is
+                        (tcp/240c::6666/53),set demo:
+                        udp/2a00:1450:4009:808::200e/53
   --proxy PROXY         The socks5 proxy for to DNS over HTTPS, option, if it
                         is set, use https://dns.google.com/ to query, --server
                         will not use, demo user:pass@host:port or host:port
                         有自己的代理就更好了，不用国外PHP空间上的代理，直接访问https://dns.google.com/
 ```
 
-还是没有DNS缓存，实在懒得弄，prc-dns前面放个dnsmasq或者pdnsd，效果更好。
+还是没有DNS缓存，实在懒得弄，prc-dns前面放个dnsmasq、pdnsd、Unbound（支持Windows），效果更好。
 
 ## 为什么不用OPENDNS
 曾经用过pdnsd，设置上游为OPENDNS的TCP:208.67.222.222:443，发现`img.alicdn.com`解析到了
@@ -106,6 +110,5 @@ server=/taobao.com/192.168.1.1
 server=/cn/192.168.1.1
 server=/#/127.0.0.1#5333
 ```
-### 已知的有问题域名
-`127.net`（访问163时发现的问题）
+
 copy some code from [Simple DNS server (UDP and TCP) in Python using dnslib.py](https://gist.github.com/andreif/6069838)
