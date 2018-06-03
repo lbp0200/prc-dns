@@ -341,7 +341,6 @@ def get_arg():
                         default=LogLevel.error)
     parser.add_argument('--tcp_udp', help='DNS protocol, tcp udp or both', type=Protocol, default=Protocol.udp)
     parser.add_argument('--myip', help='the Public IP v4 of client, will get it automatically', default=None)
-    parser.add_argument('--myip6', help='the Public IP v6 of client, will get it automatically', default=None)
 
     parser.add_argument('--ip_version',
                         help='The IP Version of NetWork, Enum(64=try ipv6 first,46=try ipv4 first),'
@@ -415,11 +414,6 @@ def get_arg():
         if ip.iptype() == 'PRIVATE':
             raise ValueError('Invalid myip, it is a private IP, if you do not know what is it mean, leave it empty.')
         logging.info('your public IP v4 is %s', args.myip)
-    if args.myip6 is not None:
-        ip = IP(args.myip6)
-        if ip.iptype() == 'PRIVATE':
-            raise ValueError('Invalid myip, it is a private IP, if you do not know what is it mean, leave it empty.')
-        logging.info('your public IP v6 is %s', args.myip6)
 
 
 def start_tcp_server(host, port):
@@ -461,7 +455,7 @@ def main():
     test_ip_version('people.cn')
 
     # DNS服务器启动后，开始解析自身依赖域名
-    if args.myip is None or args.myip6 is None:
+    if args.myip is None:
         resp = requests_retry_session().get(args.server)
         myip_data = resp.json()
         args.myip = myip_data['origin']
