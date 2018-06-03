@@ -217,6 +217,14 @@ def is_domain_white_list(domain):
     return True
 
 
+def is_server_cached():
+    if args.server_key_4 in args.server_cache and args.server_cache[args.server_key_4]['rdata']:
+        return True
+    if args.server_key_6 in args.server_cache and args.server_cache[args.server_key_6]['rdata']:
+        return True
+    return False
+
+
 def dns_response(data):
     try:
         dns_req = DNSRecord.parse(data)
@@ -232,26 +240,29 @@ def dns_response(data):
 
     # get args.server from cache
     k = qn + '@' + qt
-    if args.server_info and k in args.server_info and args.server_info[k]['expire'] > datetime.datetime.now():
+    if args.server_cache and k in args.server_cache and args.server_cache[k]['rdata']:
         dns_reply = dns_req.reply()
-        dns_reply.rr = args.server_info[k]['rdata']
+        dns_reply.rr = args.server_cache[k]['rdata']
         return dns_reply.pack()
 
     # 无代理，server 域名需要解析
-    if args.server_info:
-        if not is_domain_white_list(qn) and k in args.server_info and args.server_info[k][
-            'expire'] > datetime.datetime.now():
+    if args.proxy is None:
+        logging.debug('use php server')
+        logging.debug(args.server_cache)
+        if not is_domain_white_list(qn) and args.server_cache and k not in args.server_cache and is_server_cached():
             dns_reply = query_domain(dns_req)
         else:
             dns_reply = query_cn_domain(dns_req)
-            if dns_reply.rr and k in args.server_info:
-                args.server_info[k]['expire'] = get_expire_datetime(dns_reply.rr[0].ttl)
-                args.server_info[k]['rdata'] = dns_reply.rr
+            logging.debug('cache server result')
+            if dns_reply.rr and k in args.server_cache:
+                args.server_cache[k]['rdata'] = dns_reply.rr
                 # server cname 也缓存
                 for r in dns_reply.rr:
-                    if r.rname != qname and QTYPE[r.rtype] == ['CNAME']:
+                    logging.debug('server result %r', r)
+                    if r.rname != qname and QTYPE[r.rtype] in ['A', 'AAAA']:
+                        logging.debug('cache server cname result, %s', r.rname)
                         cname_k = str(r.rname) + '@' + QTYPE[r.rtype]
-                        args.server_info[cname_k] = {'rdata': None, 'expire': datetime.datetime.min}
+                        args.server_cache[cname_k] = {'rdata': None}
 
     # 有代理，无需 server
     else:
@@ -377,9 +388,11 @@ def get_arg():
         if args.server is None:
             args.server = server
         parsed_uri = urlparse(args.server)
-        args.server_info = {
-            parsed_uri.hostname + '.@A': {'rdata': None, 'expire': datetime.datetime.min},
-            parsed_uri.hostname + '.@AAAA': {'rdata': None, 'expire': datetime.datetime.min},
+        args.server_key_4 = parsed_uri.hostname + '.@A'
+        args.server_key_6 = parsed_uri.hostname + '.@AAAA'
+        args.server_cache = {
+            args.server_key_4: {'rdata': None, },
+            args.server_key_6: {'rdata': None, },
         }
         # global white_domain_dict
         # root_domain = get_root_domain(parsed_uri.hostname)
@@ -448,8 +461,8 @@ def main():
         args.myip = myip_data['origin']
         logging.info('your public IP is %s', args.myip)
 
-    if args.server_info:
-        logging.debug('server_info is %r', args.server_info)
+    if args.server_cache:
+        logging.debug('server_info is %r', args.server_cache)
 
     try:
         sys.stdin.read()
