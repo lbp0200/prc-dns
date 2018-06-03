@@ -18,6 +18,7 @@ from IPy import IP
 from urlparse import urlparse
 import re
 import white_domain
+from myrequests import requests_retry_session
 
 
 class LogLevel(Enum):
@@ -41,8 +42,6 @@ class Protocol(Enum):
 
 
 class IpVersion(Enum):
-    ipv4 = '4'
-    ipv6 = '6'
     ipv6_ipv4 = '64'
     ipv4_ipv6 = '46'
 
@@ -88,38 +87,34 @@ def query_over_udp(proxy_request, ip, port):
 
 
 def query_over_http(qn, qt):
-    for i in range(1, 3):
-        try:
-            if args.proxy is None:
-                name = urllib.quote(base64.b64encode(qn))
-                t = urllib.quote(base64.b64encode(qt))
-                ecs = urllib.quote(base64.b64encode(args.myip))
-                r = requests.get(url=args.server, params={'name': name, 'type': t, 'edns_client_subnet': ecs},
-                                 headers={'User-Agent': ua_format.format(random.randint(1, 9999))})
-                resp = base64.b64decode(r.text)
-            else:
-                r = requests.get(url=args.server,
-                                 params={'name': qn, 'type': qt, 'edns_client_subnet': args.myip},
-                                 headers={'User-Agent': ua_format.format(random.randint(1, 9999))},
-                                 proxies={'http': args.proxy, 'https': args.proxy})
-                resp = r.text
-            logging.info('Query DNS over http, url: %s', r.url)
-            logging.debug('Query DNS over http, response: %s', resp)
-            return json.loads(resp)
-        except Exception as e:
-            logging.warning("Query DNS over %s %s Error %s", args.server,
-                            {'name': qn, 'type': qt, 'edns_client_subnet': args.myip},
-                            e)
-            logging.warning('Retry %d', i)
-    logging.error("Query DNS over %s %s Error %s", args.server,
-                  {'name': qn, 'type': qt, 'edns_client_subnet': args.myip},
-                  e)
+    try:
+        if args.proxy is None:
+            name = urllib.quote(base64.b64encode(qn))
+            t = urllib.quote(base64.b64encode(qt))
+            ecs = urllib.quote(base64.b64encode(args.myip))
+            r = requests_retry_session().get(url=args.server,
+                                             params={'name': name, 'type': t, 'edns_client_subnet': ecs},
+                                             headers={'User-Agent': ua_format.format(random.randint(1, 9999))})
+            resp = base64.b64decode(r.text)
+        else:
+            r = requests_retry_session().get(url=args.server,
+                                             params={'name': qn, 'type': qt, 'edns_client_subnet': args.myip},
+                                             headers={'User-Agent': ua_format.format(random.randint(1, 9999))},
+                                             proxies={'http': args.proxy, 'https': args.proxy})
+            resp = r.text
+        logging.info('Query DNS over http, url: %s', r.url)
+        logging.debug('Query DNS over http, response: %s', resp)
+        return json.loads(resp)
+    except Exception as e:
+        logging.warning("Query DNS over %s %s Error %s", args.server,
+                        {'name': qn, 'type': qt, 'edns_client_subnet': args.myip},
+                        e)
 
 
 def query_cn_domain(dns_req):
     proxy_request = DNSRecord(q=DNSQuestion(dns_req.q.qname, dns_req.q.qtype))
     dns_cn = random.choice(DNS_SERVERS_IN_PRC)
-    (protocal, ip, port) = dns_cn.split(':')
+    (protocal, ip, port) = dns_cn.split('/')
     logging.debug('use random cn DNS server %s %s:%s', protocal, ip, port)
     if protocal == 'tcp':
         data = query_over_tcp(proxy_request, ip, int(port))
@@ -128,20 +123,9 @@ def query_cn_domain(dns_req):
     dns_result = DNSRecord.parse(data)
     logging.debug('cn domain query result is %s', dns_result)
 
-    # if args.server_info and args.server_info['domain'] == str(dns_req.q.qname):
-    #     args.server_info['ip'] =
-    #     args.server_info['expire'] = datetime.datetime.now()
-
     dns_reply = dns_req.reply()
     for r in dns_result.rr:
         dns_reply.add_answer(r)
-        # cache args.server
-        if QTYPE[r.rtype] == 'A' and args.server_info and args.server_info['domain'] == str(r.rname) and \
-                args.server_info['expire'] <= datetime.datetime.now():
-            args.server_info['expire'] = datetime.datetime.now() + datetime.timedelta(
-                seconds=r.ttl if r.ttl > 0 else 365 * 24 * 60 * 60)
-            args.server_info['ip'] = r.rdata
-
     for a in dns_result.auth:
         dns_reply.add_auth(a)
     return dns_reply
@@ -205,17 +189,24 @@ def dns_response(data):
     qt = QTYPE[qtype]
     logging.info('Received DNS Request: %s %s', qn, qt)
 
-    # cache args.server
-    if args.server_info and args.server_info['domain'] == qn and args.server_info['expire'] > datetime.datetime.now():
+    # get args.server from cache
+    k = qn + '@' + qt
+    if args.server_info and k in args.server_info and k in args.server_info and args.server_info[k][
+        'expire'] > datetime.datetime.now():
         dns_reply = dns_req.reply()
         dns_reply.add_answer(RR(qn, qt))
         return dns_reply.pack()
 
-    if not is_domain_white_list(qn) and args.server_info and args.server_info[
+    if not is_domain_white_list(qn) and args.server_info and k in args.server_info and args.server_info[k][
         'expire'] > datetime.datetime.now():
         dns_reply = query_domain(dns_req)
     else:
         dns_reply = query_cn_domain(dns_req)
+
+        if args.server_info and dns_reply.rr and k in args.server_info:
+            args.server_info[k]['expire'] = datetime.datetime.now() + datetime.timedelta(
+                seconds=dns_reply.rr[0].ttl if dns_reply.rr[0].ttl > 0 else 365 * 24 * 60 * 60)
+            args.server_info[k]['rdata'] = dns_reply.rr
 
     logging.debug("response DNS reply %s", dns_reply)
 
@@ -275,8 +266,8 @@ def get_arg():
     """解析参数"""
     parser = argparse.ArgumentParser(prog='prc-dns', description='google dns proxy.')
     parser.add_argument('-v', '--verbose', help='log out DEBUG', action="store_true")
-    parser.add_argument('-l', '--listen', help='listening IP,default 0.0.0.0', default='0.0.0.0')
-    parser.add_argument('-p', '--port', help='listening Port,default 5333', type=int, default=5333)
+    parser.add_argument('-H', '--host', help='listening IP,default 127.0.0.2', default='127.0.0.2')
+    parser.add_argument('-P', '--port', help='listening Port,default 5333', type=int, default=5333)
     parser.add_argument('--log', help='Log Level,default ERROR', type=LogLevel, choices=list(LogLevel),
                         default=LogLevel.error)
     parser.add_argument('--tcp_udp', help='DNS protocol, tcp udp or both', type=Protocol, default=Protocol.udp)
@@ -284,9 +275,9 @@ def get_arg():
     parser.add_argument('--myip6', help='the Public IP v6 of client, will get it automatically', default=None)
 
     parser.add_argument('--ip_version',
-                        help='The IP Version of NetWork, Enum(4=ipv4 only,6=ipv6 only,64=prefer ipv6,46=prefer ipv4),'
-                             'Default ipv4',
-                        default=IpVersion.ipv4)
+                        help='The IP Version of NetWork, Enum(64=try ipv6 first,46=try ipv4 first),'
+                             'Default 46',
+                        default=IpVersion.ipv4_ipv6)
 
     parser.add_argument('--server', help='The Server proxy DNS Request', default=server)
     parser.add_argument('--cn',
@@ -334,13 +325,16 @@ def get_arg():
         if args.server is None:
             args.server = server
         parsed_uri = urlparse(args.server)
-        args.server_info = {'domain': parsed_uri.hostname + '.', 'ip': None, 'expire': datetime.datetime.min}
-        global white_domain_dict
-        root_domain = get_root_domain(parsed_uri.hostname)
-        if root_domain:
-            white_domain_dict[root_domain] = 1
-        else:
-            raise Exception('Can not get Root Domain of ' + parsed_uri.hostname)
+        args.server_info = {
+            parsed_uri.hostname + '.@A': {'rdata': None, 'expire': datetime.datetime.min},
+            parsed_uri.hostname + '.@AAAA': {'rdata': None, 'expire': datetime.datetime.min},
+        }
+        # global white_domain_dict
+        # root_domain = get_root_domain(parsed_uri.hostname)
+        # if root_domain:
+        #     white_domain_dict[root_domain] = 1
+        # else:
+        #     raise Exception('Can not get Root Domain of ' + parsed_uri.hostname)
     else:
         args.proxy = 'socks5:{0}'.format(args.proxy)
         args.server = 'https://dns.google.com/resolve'
@@ -368,8 +362,8 @@ def start_tcp_server(host, port):
     return tcp_server
 
 
-def start_udp_server(host, port):
-    udp_server = ThreadedUDPServer((host, port), UdpRequestHandler)
+def start_udp_server(host, port, inet=socket.AF_INET):
+    udp_server = ThreadedUDPServer((host, port), UdpRequestHandler, inet)
     ip, port = udp_server.server_address
 
     udp_server_thread = threading.Thread(target=udp_server.serve_forever)
@@ -382,7 +376,7 @@ def start_udp_server(host, port):
 def main():
     get_arg()
 
-    host, port = args.listen, args.port
+    host, port = args.host, args.port
     servers = []
     if args.tcp_udp == Protocol.both:
         servers.append(start_tcp_server(host, port))
@@ -398,24 +392,20 @@ def main():
     #     pass
 
     # DNS服务器启动后，开始解析自身依赖域名
-    if args.ip_version == IpVersion.ipv4:
+    if args.ip_version == IpVersion.ipv4_ipv6:
         if args.myip is None:
             pass
-    elif args.ip_version == IpVersion.ipv6:
-        if args.myip6 is None:
-            pass
-    elif args.ip_version == IpVersion.ipv6_ipv4:
-        if args.myip6 is None:
-            pass
+    else:
+        pass
 
     if args.myip is None or args.myip6 is None:
-        resp = requests.get(args.server)
+        resp = requests_retry_session().get(args.server)
         myip_data = resp.json()
         args.myip = myip_data['origin']
         logging.info('your public IP is %s', args.myip)
 
     if args.server_info:
-        pass
+        logging.debug('server_info is %r', args.server_info)
 
     try:
         sys.stdin.read()
