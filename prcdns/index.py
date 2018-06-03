@@ -50,12 +50,16 @@ class IpVersion(Enum):
 
 
 white_domain_dict = white_domain.white_domain_dict
-
-DNS_SERVERS_IN_PRC = ['tcp/114.114.114.114/53', 'tcp/114.114.115.115/53', ]
-DNS6_SERVERS_IN_PRC = ['tcp/240c::6666/53', 'tcp/240c::6644/53', ]
+dns_servers_in_prc = None
+dns4_servers_in_prc = ['tcp/114.114.114.114/53', 'tcp/114.114.115.115/53', ]
+dns6_servers_in_prc = ['tcp/240c::6666/53', 'tcp/240c::6644/53', ]
 server = 'http://prudent-travels.000webhostapp.com/dns.php'
 ua_format = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.{0}.181 Safari/537.36'
 args = None
+
+
+def get_expire_datetime(ttl):
+    return datetime.datetime.now() + datetime.timedelta(seconds=ttl if ttl > 0 else 365 * 24 * 60 * 60)
 
 
 def get_inet_version(ip):
@@ -111,9 +115,46 @@ def query_over_http(qn, qt):
                         e)
 
 
+def query_cn_domain_by_domain(domain, cn_dns_list):
+    proxy_request = DNSRecord(q=DNSQuestion(domain))
+    dns_cn = random.choice(cn_dns_list)
+    (protocal, ip, port) = dns_cn.split('/')
+    logging.debug('use random cn DNS server %s %s:%s', protocal, ip, port)
+    if protocal == 'tcp':
+        data = query_over_tcp(proxy_request, ip, int(port))
+    else:
+        data = query_over_udp(proxy_request, ip, int(port))
+    dns_result = DNSRecord.parse(data)
+    logging.debug('cn domain query result is %s', dns_result)
+
+
+def test_ip_version(domain='people.cn'):
+    logging.info('test network is ipv6 or ipv4')
+    global dns_servers_in_prc
+    if args.ip_version == IpVersion.ipv4_ipv6:
+        if args.cn:
+            dns_servers_in_prc = [args.cn]
+        else:
+            try:
+                query_cn_domain_by_domain(domain, dns4_servers_in_prc)
+                dns_servers_in_prc = dns4_servers_in_prc
+            except:
+                dns_servers_in_prc = dns6_servers_in_prc
+    else:
+        if args.cn6:
+            dns_servers_in_prc = [args.cn6]
+        else:
+            try:
+                query_cn_domain_by_domain(domain, dns6_servers_in_prc)
+                dns_servers_in_prc = dns6_servers_in_prc
+            except:
+                dns_servers_in_prc = dns6_servers_in_prc
+    logging.info('cn dns upstream is %r', dns_servers_in_prc)
+
+
 def query_cn_domain(dns_req):
     proxy_request = DNSRecord(q=DNSQuestion(dns_req.q.qname, dns_req.q.qtype))
-    dns_cn = random.choice(DNS_SERVERS_IN_PRC)
+    dns_cn = random.choice(dns_servers_in_prc)
     (protocal, ip, port) = dns_cn.split('/')
     logging.debug('use random cn DNS server %s %s:%s', protocal, ip, port)
     if protocal == 'tcp':
@@ -124,11 +165,12 @@ def query_cn_domain(dns_req):
     logging.debug('cn domain query result is %s', dns_result)
 
     dns_reply = dns_req.reply()
-    for r in dns_result.rr:
-        dns_reply.add_answer(r)
-    for a in dns_result.auth:
-        dns_reply.add_auth(a)
+    dns_reply.rr = dns_result.rr
     return dns_reply
+    # for r in dns_result.rr:
+    #     dns_reply.add_answer(r)
+    # for a in dns_result.auth:
+    #     dns_reply.add_auth(a)
 
 
 def query_domain(dns_req):
@@ -187,26 +229,36 @@ def dns_response(data):
     qn = str(qname)
     qtype = dns_req.q.qtype
     qt = QTYPE[qtype]
-    logging.info('Received DNS Request: %s %s', qn, qt)
 
     # get args.server from cache
     k = qn + '@' + qt
-    if args.server_info and k in args.server_info and k in args.server_info and args.server_info[k][
-        'expire'] > datetime.datetime.now():
+    if args.server_info and k in args.server_info and args.server_info[k]['expire'] > datetime.datetime.now():
         dns_reply = dns_req.reply()
-        dns_reply.add_answer(RR(qn, qt))
+        dns_reply.rr = args.server_info[k]['rdata']
         return dns_reply.pack()
 
-    if not is_domain_white_list(qn) and args.server_info and k in args.server_info and args.server_info[k][
-        'expire'] > datetime.datetime.now():
-        dns_reply = query_domain(dns_req)
-    else:
-        dns_reply = query_cn_domain(dns_req)
+    # 无代理，server 域名需要解析
+    if args.server_info:
+        if not is_domain_white_list(qn) and k in args.server_info and args.server_info[k][
+            'expire'] > datetime.datetime.now():
+            dns_reply = query_domain(dns_req)
+        else:
+            dns_reply = query_cn_domain(dns_req)
+            if dns_reply.rr and k in args.server_info:
+                args.server_info[k]['expire'] = get_expire_datetime(dns_reply.rr[0].ttl)
+                args.server_info[k]['rdata'] = dns_reply.rr
+                # server cname 也缓存
+                for r in dns_reply.rr:
+                    if r.rname != qname and QTYPE[r.rtype] == ['CNAME']:
+                        cname_k = str(r.rname) + '@' + QTYPE[r.rtype]
+                        args.server_info[cname_k] = {'rdata': None, 'expire': datetime.datetime.min}
 
-        if args.server_info and dns_reply.rr and k in args.server_info:
-            args.server_info[k]['expire'] = datetime.datetime.now() + datetime.timedelta(
-                seconds=dns_reply.rr[0].ttl if dns_reply.rr[0].ttl > 0 else 365 * 24 * 60 * 60)
-            args.server_info[k]['rdata'] = dns_reply.rr
+    # 有代理，无需 server
+    else:
+        if not is_domain_white_list(qn):
+            dns_reply = query_domain(dns_req)
+        else:
+            dns_reply = query_cn_domain(dns_req)
 
     logging.debug("response DNS reply %s", dns_reply)
 
@@ -386,18 +438,10 @@ def main():
     else:
         servers.append(start_udp_server(host, port))
 
-    # try:
-    #     requests.get('https://mirrors6.tuna.tsinghua.edu.cn/', allow_redirects=False, timeout=(1, 3))
-    # except:
-    #     pass
+    # 测试IPV6，选择上游cn DNS
+    test_ip_version('people.cn')
 
     # DNS服务器启动后，开始解析自身依赖域名
-    if args.ip_version == IpVersion.ipv4_ipv6:
-        if args.myip is None:
-            pass
-    else:
-        pass
-
     if args.myip is None or args.myip6 is None:
         resp = requests_retry_session().get(args.server)
         myip_data = resp.json()
