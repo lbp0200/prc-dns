@@ -91,28 +91,34 @@ def query_over_udp(proxy_request, ip, port):
 
 
 def query_over_http(qn, qt):
+    start_time = time.time()
+    myip = '43.250.236.4'
+    if args.myip is not None:
+        myip = args.myip
     try:
         if args.proxy is None:
             name = urllib.quote(base64.b64encode(qn))
             t = urllib.quote(base64.b64encode(qt))
-            ecs = urllib.quote(base64.b64encode(args.myip))
+            ecs = urllib.quote(base64.b64encode(myip))
             r = requests_retry_session().get(url=args.server,
                                              params={'name': name, 'type': t, 'edns_client_subnet': ecs},
                                              headers={'User-Agent': ua_format.format(random.randint(1, 9999))})
             resp = base64.b64decode(r.text)
         else:
             r = requests_retry_session().get(url=args.server,
-                                             params={'name': qn, 'type': qt, 'edns_client_subnet': args.myip},
+                                             params={'name': qn, 'type': qt, 'edns_client_subnet': myip},
                                              headers={'User-Agent': ua_format.format(random.randint(1, 9999))},
                                              proxies={'http': args.proxy, 'https': args.proxy})
             resp = r.text
         logging.info('Query DNS over http, url: %s', r.url)
         logging.debug('Query DNS over http, response: %s', resp)
+        logging.debug("query_over_http executed --- %s seconds ---" % (time.time() - start_time))
         return json.loads(resp)
     except Exception as e:
         logging.warning("Query DNS over %s %s Error %s", args.server,
                         {'name': qn, 'type': qt, 'edns_client_subnet': args.myip},
                         e)
+    logging.debug("query_over_http executed --- %s seconds ---" % (time.time() - start_time))
 
 
 def query_cn_domain_by_domain(domain, cn_dns_list):
