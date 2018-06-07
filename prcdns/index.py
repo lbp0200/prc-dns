@@ -102,13 +102,14 @@ def query_over_http(qn, qt):
             ecs = urllib.quote(base64.b64encode(myip))
             r = requests_retry_session().get(url=args.server,
                                              params={'name': name, 'type': t, 'edns_client_subnet': ecs},
-                                             headers={'User-Agent': ua_format.format(random.randint(1, 9999))})
+                                             headers={'User-Agent': ua_format.format(random.randint(1, 9999))},
+                                             timeout=(3.05, 27))
             resp = base64.b64decode(r.text)
         else:
             r = requests_retry_session().get(url=args.server,
                                              params={'name': qn, 'type': qt, 'edns_client_subnet': myip},
                                              headers={'User-Agent': ua_format.format(random.randint(1, 9999))},
-                                             proxies={'http': args.proxy, 'https': args.proxy})
+                                             proxies={'http': args.proxy, 'https': args.proxy}, timeout=(3.05, 27))
             resp = r.text
         logging.info('Query DNS over http, url: %s', r.url)
         logging.debug('Query DNS over http, response: %s', resp)
@@ -144,8 +145,10 @@ def test_ip_version(domain='people.cn'):
             try:
                 query_cn_domain_by_domain(domain, dns4_servers_in_prc)
                 dns_servers_in_prc = dns4_servers_in_prc
+                args.ipv6 = False
             except:
                 dns_servers_in_prc = dns6_servers_in_prc
+                args.ipv6 = True
     else:
         if args.cn6:
             dns_servers_in_prc = [args.cn6]
@@ -153,8 +156,10 @@ def test_ip_version(domain='people.cn'):
             try:
                 query_cn_domain_by_domain(domain, dns6_servers_in_prc)
                 dns_servers_in_prc = dns6_servers_in_prc
+                args.ipv6 = True
             except:
-                dns_servers_in_prc = dns6_servers_in_prc
+                dns_servers_in_prc = dns4_servers_in_prc
+                args.ipv6 = False
     logging.info('cn dns upstream is %r', dns_servers_in_prc)
 
 
@@ -253,9 +258,9 @@ def dns_response(data):
 
     # 无代理，server 域名需要解析
     if args.proxy is None:
-        logging.debug('use php server')
         logging.debug(args.server_cache)
         if not is_domain_white_list(qn) and args.server_cache and k not in args.server_cache and is_server_cached():
+            logging.debug('use php server')
             dns_reply = query_domain(dns_req)
         else:
             dns_reply = query_cn_domain(dns_req)
@@ -453,11 +458,15 @@ def main():
         servers.append(start_udp_server(host, port))
 
     # 测试IPV6，选择上游cn DNS
-    test_ip_version(args.server_domain)
+    test_ip_version('www.people.cn')
+
+    # Cache Server DNS Record
+    if args.proxy is None:
+        dns_response(DNSRecord(q=DNSQuestion(args.server_domain, 28 if args.ipv6 else 1)).pack())
 
     # DNS服务器启动后，开始解析自身依赖域名
     if args.myip is None:
-        resp = requests_retry_session().get(args.server)
+        resp = requests_retry_session().get(args.server, timeout=(3.05, 27))
         myip_data = resp.json()
         args.myip = myip_data['origin']
         logging.info('your public IP is %s', args.myip)
