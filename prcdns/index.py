@@ -393,6 +393,7 @@ def get_arg():
         if args.server is None:
             args.server = server
         parsed_uri = urlparse(args.server)
+        args.server_domain = parsed_uri.hostname
         args.server_key_4 = parsed_uri.hostname + '.@A'
         args.server_key_6 = parsed_uri.hostname + '.@AAAA'
         args.server_cache = {
@@ -452,7 +453,7 @@ def main():
         servers.append(start_udp_server(host, port))
 
     # 测试IPV6，选择上游cn DNS
-    test_ip_version('people.cn')
+    test_ip_version(args.server_domaink)
 
     # DNS服务器启动后，开始解析自身依赖域名
     if args.myip is None:
