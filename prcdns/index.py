@@ -453,7 +453,7 @@ def main():
         servers.append(start_udp_server(host, port))
 
     # 测试IPV6，选择上游cn DNS
-    test_ip_version(args.server_domaink)
+    test_ip_version(args.server_domain)
 
     # DNS服务器启动后，开始解析自身依赖域名
     if args.myip is None:
