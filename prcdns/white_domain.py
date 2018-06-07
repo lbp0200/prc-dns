@@ -7,6 +7,7 @@ white_domain_dict = {
     '127.net': 1,
     '163.com': 1,
     'taobao.com': 1,
+    'alicdn.com': 1,
     'qq.com': 1,
     'gtimg.com': 1,
 }

@@ -1,5 +1,7 @@
 # /usr/bin/env python2
 # coding=utf-8
+
+import os.path
 import sys
 import datetime
 import traceback
@@ -10,7 +12,6 @@ import logging
 import argparse
 from enum import Enum
 from dnslib import *
-import requests
 import random
 import urllib
 import json
@@ -366,6 +367,10 @@ def get_arg():
                              'use https://dns.google.com/ to query, --server will not use, '
                              'demo user:pass@host:port or host:port',
                         default=None)
+    parser.add_argument('--prc_domain',
+                        help='file contains domains in prc ',
+                        default='conf/prc-domain.txt')
+
     global args
     args = parser.parse_args()
 
@@ -405,7 +410,6 @@ def get_arg():
             args.server_key_4: {'rdata': None, },
             args.server_key_6: {'rdata': None, },
         }
-        # global white_domain_dict
         # root_domain = get_root_domain(parsed_uri.hostname)
         # if root_domain:
         #     white_domain_dict[root_domain] = 1
@@ -414,6 +418,17 @@ def get_arg():
     else:
         args.proxy = 'socks5:{0}'.format(args.proxy)
         args.server = 'https://dns.google.com/resolve'
+
+    # read prc_domain
+    if os.path.exists(os.path.abspath(args.prc_domain)):
+        with open(os.path.abspath(args.prc_domain)) as prc_domains:
+            global white_domain_dict
+
+            lines = prc_domains.readlines()
+            dic = [l.strip() for l in lines if not l.strip().startswith('#')]
+            for d in dic:
+                if d not in white_domain_dict:
+                    white_domain_dict[d] = 1
 
     if args.myip is not None:
         ip = IP(args.myip)
