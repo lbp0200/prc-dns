@@ -440,7 +440,7 @@ def get_arg():
             lines = prc_domains.readlines()
             dic = [l.strip() for l in lines if not l.strip().startswith('#')]
             for d in dic:
-                if d not in white_domain_dict:
+                if d and d not in white_domain_dict:
                     white_domain_dict[d] = 1
 
     if args.myip is not None:
