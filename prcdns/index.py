@@ -141,7 +141,8 @@ def test_ip_version(domain='people.cn'):
     global dns_servers_in_prc
     if args.ip_version == IpVersion.ipv4_ipv6:
         if args.cn:
-            dns_servers_in_prc = [args.cn]
+            dns_servers_in_prc = args.cn
+            args.ipv6 = False
         else:
             try:
                 query_cn_domain_by_domain(domain, dns4_servers_in_prc)
@@ -152,7 +153,8 @@ def test_ip_version(domain='people.cn'):
                 args.ipv6 = True
     else:
         if args.cn6:
-            dns_servers_in_prc = [args.cn6]
+            dns_servers_in_prc = args.cn6
+            args.ipv6 = True
         else:
             try:
                 query_cn_domain_by_domain(domain, dns6_servers_in_prc)
@@ -355,12 +357,12 @@ def get_arg():
 
     parser.add_argument('--server', help='The Server proxy DNS Request', default=server)
     parser.add_argument('--cn',
-                        help='The DNS Server for cn domain,default is tcp/114.114.114/53,'
-                             'set demo: udp/180.76.76.76/53',
+                        help='The DNS Server for cn domain,default is "tcp/114.114.114/53,tcp/114.115.115/53"'
+                             'set demo: "udp/180.76.76.76/53,udp/223.5.5.5/53"',
                         default=None)
     parser.add_argument('--cn6',
-                        help='The DNS Server for cn domain,default is (tcp/240c::6666/53),'
-                             'set demo: udp/2a00:1450:4009:808::200e/53',
+                        help='The DNS Server for cn domain,default is "tcp/240c::6666/53,tcp/240c::6644/53",'
+                             'set demo: "udp/2a00:1450:4009:808::200e/53,udp/::1/53"',
                         default=None)
     parser.add_argument('--proxy',
                         help='The socks5 proxy for to DNS over HTTPS, option, if it is set, '
@@ -384,21 +386,32 @@ def get_arg():
     logging.basicConfig(format='%(asctime)s %(message)s', level=numeric_level)
 
     if args.cn is not None:
-        (cn_proto, cn_ip, cn_port) = args.cn.split('/')
-        if cn_proto not in ['tcp', 'udp']:
-            raise ValueError('--cn protocol must be one of tcp or udp')
-        cn_port = int(cn_port)
-        if cn_port < 1 or cn_port > 65535:
-            raise ValueError('--cn port error')
-        IP(cn_ip)
+        cn_ss = []
+        cn_servers = args.cn.split(',')
+        for cn_s in cn_servers:
+            (cn_proto, cn_ip, cn_port) = cn_s.split('/')
+            if cn_proto not in ['tcp', 'udp']:
+                raise ValueError('--cn protocol must be one of tcp or udp')
+            cn_port = int(cn_port)
+            if cn_port < 1 or cn_port > 65535:
+                raise ValueError('--cn port error')
+            IP(cn_ip)
+            cn_ss.append(cn_s)
+        args.cn = cn_ss
     if args.cn6 is not None:
-        (cn6_proto, cn6_ip, cn6_port) = args.cn6.split('/')
-        if cn6_proto not in ['tcp', 'udp']:
-            raise ValueError('--cn protocol must be one of tcp or udp')
-        cn6_port = int(cn6_port)
-        if cn6_port < 1 or cn6_port > 65535:
-            raise ValueError('--cn port error')
-        IP(cn6_ip)
+        cn6_ss = []
+        cn6_servers = args.cn6.split(',')
+        for cn6_s in cn6_servers:
+            (cn6_proto, cn6_ip, cn6_port) = cn6_s.split('/')
+            if cn6_proto not in ['tcp', 'udp']:
+                raise ValueError('--cn protocol must be one of tcp or udp')
+            cn6_port = int(cn6_port)
+            if cn6_port < 1 or cn6_port > 65535:
+                raise ValueError('--cn port error')
+            IP(cn6_ip)
+            cn6_ss.append(cn6_s)
+        args.cn6 = cn6_ss
+
     if args.proxy is None:
         if args.server is None:
             args.server = server
