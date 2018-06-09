@@ -429,6 +429,7 @@ def get_arg():
         # else:
         #     raise Exception('Can not get Root Domain of ' + parsed_uri.hostname)
     else:
+        args.server_cache = None
         args.proxy = 'socks5:{0}'.format(args.proxy)
         args.server = 'https://dns.google.com/resolve'
 
