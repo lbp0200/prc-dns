@@ -23,7 +23,7 @@ user=data
 ```
 
 走SS通道解析，推荐，租个[搬瓦工](https://polr.liuboping.com/9zuU9)、[Vultr](https://polr.liuboping.com/PrgTf)、
-[ChangeIP](https://polr.liuboping.com/changeip)，其实也花不了多少钱。
+[ChangeIP](https://polr.liuboping.com/changeip)、[PnzHost](https://polr.liuboping.com/pnzhost)，其实也花不了多少钱。
 ```
 [program:prc-dns]
 command=/home/data/pyenv/2.7.14/bin/prcdns --proxy 127.0.0.1:1080
