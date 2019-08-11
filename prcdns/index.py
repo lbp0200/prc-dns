@@ -477,14 +477,6 @@ def main():
     get_arg()
 
     host, port = args.host, args.port
-    servers = []
-    if args.tcp_udp == Protocol.both:
-        servers.append(start_tcp_server(host, port))
-        servers.append(start_udp_server(host, port))
-    elif args.tcp_udp == Protocol.tcp:
-        servers.append(start_tcp_server(host, port))
-    else:
-        servers.append(start_udp_server(host, port))
 
     # 测试IPV6，选择上游cn DNS
     test_ip_version('www.people.cn')
@@ -503,10 +495,24 @@ def main():
     if args.server_cache:
         logging.debug('server_info is %r', args.server_cache)
 
+    servers = []
     try:
-        sys.stdin.read()
-    except:
-        pass
+        if args.tcp_udp == Protocol.both:
+            # servers.append(start_tcp_server(host, port))
+            servers.append(start_udp_server(host, port))
+            tcp_server = ThreadedTCPServer((host, port), TcpRequestHandler)
+            tcp_server.serve_forever()
+        elif args.tcp_udp == Protocol.tcp:
+            # servers.append(start_tcp_server(host, port))
+            tcp_server = ThreadedTCPServer((host, port), TcpRequestHandler)
+            tcp_server.serve_forever()
+        else:
+            # servers.append(start_udp_server(host, port))
+            udp_server = ThreadedUDPServer((host, port), UdpRequestHandler, socket.AF_INET)
+            udp_server.serve_forever()
+        # sys.stdin.read()
+    except Exception as e:
+        logging.exception(e)
     finally:
         for s in servers:
             logging.info('Close socket server %s %s for exit', s.__class__.__name__[8:11], s.server_address)

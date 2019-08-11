@@ -7,8 +7,7 @@ Requires=network.target
 After=network.target
 
 [Service]
-Type=simple
-ExecStart=/usr/bin/prcdns -H 0.0.0.0 --tcp_udp both --ip_version 4 --proxy 127.0.0.1:1080 --myip 223.72.96.46
+ExecStart=/usr/bin/prcdns -H 0.0.0.0 --tcp_udp both --proxy 127.0.0.1:1080 --myip 114.114.114.114
 Restart=always
-RestartSec=1s
+RestartSec=15s
 LimitNOFILE=65535
