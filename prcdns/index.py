@@ -250,6 +250,7 @@ def dns_response(data):
     qname = dns_req.q.qname
     qn = str(qname)
     qtype = dns_req.q.qtype
+    logging.debug('qtype %r', qtype)
     qt = QTYPE[qtype]
 
     # get args.server from cache
