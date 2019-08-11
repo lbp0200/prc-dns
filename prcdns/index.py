@@ -501,14 +501,17 @@ def main():
             # servers.append(start_tcp_server(host, port))
             servers.append(start_udp_server(host, port))
             tcp_server = ThreadedTCPServer((host, port), TcpRequestHandler)
+            servers.append(tcp_server)
             tcp_server.serve_forever()
         elif args.tcp_udp == Protocol.tcp:
             # servers.append(start_tcp_server(host, port))
             tcp_server = ThreadedTCPServer((host, port), TcpRequestHandler)
+            servers.append(tcp_server)
             tcp_server.serve_forever()
         else:
             # servers.append(start_udp_server(host, port))
             udp_server = ThreadedUDPServer((host, port), UdpRequestHandler, socket.AF_INET)
+            servers.append(udp_server)
             udp_server.serve_forever()
         # sys.stdin.read()
     except Exception as e:

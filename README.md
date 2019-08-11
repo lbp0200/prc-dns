@@ -1,13 +1,8 @@
 # a DNS query agent for the people in PRC
 
-## Install
+## Install or Update
 ```
-pip install git+https://github.com/lbp0200/prc-dns.git
-```
-
-## 更新
-```
-pip install --upgrade git+https://github.com/lbp0200/prc-dns.git
+pip install -U git+https://github.com/lbp0200/prc-dns.git
 ```
 
 ## 用supervisor启动
